@@ -1,0 +1,48 @@
+{
+  "name": "@spacerun/archive-cli",
+  "version": "1.0.0",
+  "description": "CLI tool to manage Spacerun app versions and builds",
+  "main": "dist/index.js",
+  "bin": {
+    "archive": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js",
+    "pkg": "npm run build && pkg . --compress GZip",
+    "pkg:all": "npm run build && pkg . --targets node18-macos-arm64,node18-macos-x64,node18-linux-x64,node18-win-x64 --compress GZip",
+    "pkg:macos-arm64": "npm run build && pkg . --targets node18-macos-arm64 --compress GZip",
+    "pkg:macos-x64": "npm run build && pkg . --targets node18-macos-x64 --compress GZip",
+    "pkg:linux-x64": "npm run build && pkg . --targets node18-linux-x64 --compress GZip",
+    "pkg:win-x64": "npm run build && pkg . --targets node18-win-x64 --compress GZip"
+  },
+  "pkg": {
+    "scripts": "dist/**/*.js",
+    "assets": [],
+    "outputPath": "bin"
+  },
+  "keywords": ["spacerun", "version", "cli", "deployment"],
+  "author": "Spacerun",
+  "license": "MIT",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "commander": "^12.0.0",
+    "dotenv": "^16.4.0",
+    "ora": "^8.0.1",
+    "chalk": "^5.3.0",
+    "glob": "^11.0.0",
+    "mime-types": "^2.1.35",
+    "semver": "^7.6.0",
+    "prompts": "^2.4.2"
+  },
+  "devDependencies": {
+    "@types/mime-types": "^2.1.4",
+    "@types/node": "^20.11.0",
+    "@types/semver": "^7.5.6",
+    "@types/prompts": "^2.4.9",
+    "pkg": "^5.8.1",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
+  }
+}
