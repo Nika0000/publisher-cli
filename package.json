@@ -3,7 +3,6 @@
   "version": "2026.2.20-t122224",
   "description": "Publisher CLI for app versions, channels, builds, and manifests",
   "main": "dist/index.js",
-  "type": "module",
   "bin": {
     "publisher": "./dist/index.js"
   },
@@ -48,13 +47,13 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
-    "chalk": "^5.3.0",
+    "chalk": "^4.1.2",
     "commander": "^12.0.0",
     "dotenv": "^16.4.0",
     "glob": "^11.0.0",
     "jsonwebtoken": "^9.0.3",
     "mime-types": "^2.1.35",
-    "ora": "^8.0.1",
+    "ora": "^5.4.1",
     "prompts": "^2.4.2",
     "semver": "^7.6.0"
   },

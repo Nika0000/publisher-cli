@@ -1,36 +1,56 @@
-import semver from 'semver';
-export const SUPPORTED_OS = ['macos', 'windows', 'linux', 'ios', 'android'];
-export const SUPPORTED_ARCH = ['arm64', 'x64', 'x86'];
-export const SUPPORTED_BUILD_TYPES = ['patch', 'installer'];
-export const SUPPORTED_CHANNELS = ['stable', 'beta', 'alpha'];
-export const SUPPORTED_DISTRIBUTIONS = ['direct', 'store'];
-export function isSupportedOs(value) {
-    return SUPPORTED_OS.includes(value);
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.SUPPORTED_DISTRIBUTIONS = exports.SUPPORTED_CHANNELS = exports.SUPPORTED_BUILD_TYPES = exports.SUPPORTED_ARCH = exports.SUPPORTED_OS = void 0;
+exports.isSupportedOs = isSupportedOs;
+exports.isSupportedArch = isSupportedArch;
+exports.isSupportedBuildType = isSupportedBuildType;
+exports.isSupportedDistribution = isSupportedDistribution;
+exports.isSupportedChannel = isSupportedChannel;
+exports.assertValidPlatform = assertValidPlatform;
+exports.parseVersionMetadata = parseVersionMetadata;
+exports.getUpdatePolicyFromVersion = getUpdatePolicyFromVersion;
+exports.buildVersionMetadataWithPolicy = buildVersionMetadataWithPolicy;
+exports.validateSemverOrThrow = validateSemverOrThrow;
+exports.isVersionGreater = isVersionGreater;
+exports.sortVersionsDesc = sortVersionsDesc;
+exports.isWithinRolloutWindow = isWithinRolloutWindow;
+exports.isDeviceInRolloutBucket = isDeviceInRolloutBucket;
+const semver_1 = __importDefault(require("semver"));
+exports.SUPPORTED_OS = ['macos', 'windows', 'linux', 'ios', 'android'];
+exports.SUPPORTED_ARCH = ['arm64', 'x64', 'x86'];
+exports.SUPPORTED_BUILD_TYPES = ['patch', 'installer'];
+exports.SUPPORTED_CHANNELS = ['stable', 'beta', 'alpha'];
+exports.SUPPORTED_DISTRIBUTIONS = ['direct', 'store'];
+function isSupportedOs(value) {
+    return exports.SUPPORTED_OS.includes(value);
 }
-export function isSupportedArch(value) {
-    return SUPPORTED_ARCH.includes(value);
+function isSupportedArch(value) {
+    return exports.SUPPORTED_ARCH.includes(value);
 }
-export function isSupportedBuildType(value) {
-    return SUPPORTED_BUILD_TYPES.includes(value);
+function isSupportedBuildType(value) {
+    return exports.SUPPORTED_BUILD_TYPES.includes(value);
 }
-export function isSupportedDistribution(value) {
-    return SUPPORTED_DISTRIBUTIONS.includes(value);
+function isSupportedDistribution(value) {
+    return exports.SUPPORTED_DISTRIBUTIONS.includes(value);
 }
-export function isSupportedChannel(value) {
-    return SUPPORTED_CHANNELS.includes(value);
+function isSupportedChannel(value) {
+    return exports.SUPPORTED_CHANNELS.includes(value);
 }
-export function assertValidPlatform(os, arch, type) {
+function assertValidPlatform(os, arch, type) {
     if (!isSupportedOs(os)) {
-        throw new Error(`Invalid os: ${os}. Supported: ${SUPPORTED_OS.join(', ')}`);
+        throw new Error(`Invalid os: ${os}. Supported: ${exports.SUPPORTED_OS.join(', ')}`);
     }
     if (!isSupportedArch(arch)) {
-        throw new Error(`Invalid arch: ${arch}. Supported: ${SUPPORTED_ARCH.join(', ')}`);
+        throw new Error(`Invalid arch: ${arch}. Supported: ${exports.SUPPORTED_ARCH.join(', ')}`);
     }
     if (type && !isSupportedBuildType(type)) {
-        throw new Error(`Invalid type: ${type}. Supported: ${SUPPORTED_BUILD_TYPES.join(', ')}`);
+        throw new Error(`Invalid type: ${type}. Supported: ${exports.SUPPORTED_BUILD_TYPES.join(', ')}`);
     }
 }
-export function parseVersionMetadata(metadata) {
+function parseVersionMetadata(metadata) {
     const raw = typeof metadata === 'object' && metadata !== null ? metadata : {};
     const rawUpdatePolicy = typeof raw.updatePolicy === 'object' && raw.updatePolicy !== null
         ? raw.updatePolicy
@@ -38,7 +58,7 @@ export function parseVersionMetadata(metadata) {
     const channel = typeof rawUpdatePolicy.channel === 'string' && isSupportedChannel(rawUpdatePolicy.channel)
         ? rawUpdatePolicy.channel
         : 'stable';
-    const minSupportedVersion = typeof rawUpdatePolicy.minSupportedVersion === 'string' && semver.valid(rawUpdatePolicy.minSupportedVersion)
+    const minSupportedVersion = typeof rawUpdatePolicy.minSupportedVersion === 'string' && semver_1.default.valid(rawUpdatePolicy.minSupportedVersion)
         ? rawUpdatePolicy.minSupportedVersion
         : undefined;
     const rolloutPercentage = typeof rawUpdatePolicy.rolloutPercentage === 'number'
@@ -61,12 +81,12 @@ export function parseVersionMetadata(metadata) {
         },
     };
 }
-export function getUpdatePolicyFromVersion(source) {
+function getUpdatePolicyFromVersion(source) {
     const metadataPolicy = parseVersionMetadata(source.metadata).updatePolicy;
     const channel = typeof source.release_channel === 'string' && isSupportedChannel(source.release_channel)
         ? source.release_channel
         : metadataPolicy.channel;
-    const minSupportedVersion = typeof source.min_supported_version === 'string' && semver.valid(source.min_supported_version)
+    const minSupportedVersion = typeof source.min_supported_version === 'string' && semver_1.default.valid(source.min_supported_version)
         ? source.min_supported_version
         : metadataPolicy.minSupportedVersion;
     const rolloutPercentage = typeof source.rollout_percentage === 'number'
@@ -82,32 +102,32 @@ export function getUpdatePolicyFromVersion(source) {
         rolloutEndAt,
     };
 }
-export function buildVersionMetadataWithPolicy(existingMetadata, policy) {
+function buildVersionMetadataWithPolicy(existingMetadata, policy) {
     const metadata = parseVersionMetadata(existingMetadata);
     metadata.updatePolicy = policy;
     return metadata;
 }
-export function validateSemverOrThrow(value, label) {
-    if (!semver.valid(value)) {
+function validateSemverOrThrow(value, label) {
+    if (!semver_1.default.valid(value)) {
         throw new Error(`Invalid semantic version for ${label}: ${value}`);
     }
 }
-export function isVersionGreater(candidate, current) {
-    const validCandidate = semver.valid(candidate);
-    const validCurrent = semver.valid(current);
+function isVersionGreater(candidate, current) {
+    const validCandidate = semver_1.default.valid(candidate);
+    const validCurrent = semver_1.default.valid(current);
     if (!validCandidate || !validCurrent) {
         return false;
     }
-    return semver.gt(validCandidate, validCurrent);
+    return semver_1.default.gt(validCandidate, validCurrent);
 }
-export function sortVersionsDesc(items, pickVersion) {
+function sortVersionsDesc(items, pickVersion) {
     return [...items].sort((a, b) => {
         const versionA = pickVersion(a);
         const versionB = pickVersion(b);
-        const validA = semver.valid(versionA);
-        const validB = semver.valid(versionB);
+        const validA = semver_1.default.valid(versionA);
+        const validB = semver_1.default.valid(versionB);
         if (validA && validB) {
-            return semver.rcompare(validA, validB);
+            return semver_1.default.rcompare(validA, validB);
         }
         if (validA)
             return -1;
@@ -116,7 +136,7 @@ export function sortVersionsDesc(items, pickVersion) {
         return 0;
     });
 }
-export function isWithinRolloutWindow(policy, at) {
+function isWithinRolloutWindow(policy, at) {
     if (policy.rolloutStartAt) {
         const start = new Date(policy.rolloutStartAt);
         if (!Number.isNaN(start.getTime()) && at < start) {
@@ -131,7 +151,7 @@ export function isWithinRolloutWindow(policy, at) {
     }
     return true;
 }
-export function isDeviceInRolloutBucket(deviceId, rolloutPercentage) {
+function isDeviceInRolloutBucket(deviceId, rolloutPercentage) {
     if (rolloutPercentage >= 100) {
         return true;
     }

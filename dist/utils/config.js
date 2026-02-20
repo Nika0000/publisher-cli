@@ -1,52 +1,66 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
-import { homedir } from 'os';
-import { join } from 'path';
-import chalk from 'chalk';
-const CONFIG_DIR = join(homedir(), '.spacerun-archive');
-const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
-export function ensureConfigDir() {
-    if (!existsSync(CONFIG_DIR)) {
-        mkdirSync(CONFIG_DIR, { recursive: true });
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.ensureConfigDir = ensureConfigDir;
+exports.loadConfig = loadConfig;
+exports.saveConfig = saveConfig;
+exports.getConfigValue = getConfigValue;
+exports.setConfigValue = setConfigValue;
+exports.deleteConfigValue = deleteConfigValue;
+exports.clearConfig = clearConfig;
+exports.getConfigPath = getConfigPath;
+exports.configExists = configExists;
+const fs_1 = require("fs");
+const os_1 = require("os");
+const path_1 = require("path");
+const chalk_1 = __importDefault(require("chalk"));
+const CONFIG_DIR = (0, path_1.join)((0, os_1.homedir)(), '.spacerun-archive');
+const CONFIG_FILE = (0, path_1.join)(CONFIG_DIR, 'config.json');
+function ensureConfigDir() {
+    if (!(0, fs_1.existsSync)(CONFIG_DIR)) {
+        (0, fs_1.mkdirSync)(CONFIG_DIR, { recursive: true });
     }
 }
-export function loadConfig() {
+function loadConfig() {
     try {
-        if (!existsSync(CONFIG_FILE)) {
+        if (!(0, fs_1.existsSync)(CONFIG_FILE)) {
             return {};
         }
-        const content = readFileSync(CONFIG_FILE, 'utf-8');
+        const content = (0, fs_1.readFileSync)(CONFIG_FILE, 'utf-8');
         return JSON.parse(content);
     }
     catch (error) {
-        console.error(chalk.yellow('Warning: Could not load config file, using empty config'));
+        console.error(chalk_1.default.yellow('Warning: Could not load config file, using empty config'));
         return {};
     }
 }
-export function saveConfig(config) {
+function saveConfig(config) {
     ensureConfigDir();
-    writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf-8');
+    (0, fs_1.writeFileSync)(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf-8');
 }
-export function getConfigValue(key) {
+function getConfigValue(key) {
     const config = loadConfig();
     return config[key];
 }
-export function setConfigValue(key, value) {
+function setConfigValue(key, value) {
     const config = loadConfig();
     config[key] = value;
     saveConfig(config);
 }
-export function deleteConfigValue(key) {
+function deleteConfigValue(key) {
     const config = loadConfig();
     delete config[key];
     saveConfig(config);
 }
-export function clearConfig() {
+function clearConfig() {
     saveConfig({});
 }
-export function getConfigPath() {
+function getConfigPath() {
     return CONFIG_FILE;
 }
-export function configExists() {
-    return existsSync(CONFIG_FILE);
+function configExists() {
+    return (0, fs_1.existsSync)(CONFIG_FILE);
 }
 //# sourceMappingURL=config.js.map

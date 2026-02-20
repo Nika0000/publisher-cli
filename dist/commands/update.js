@@ -1,27 +1,33 @@
-import ora from 'ora';
-import chalk from 'chalk';
-import semver from 'semver';
-import { supabase } from '../index.js';
-import { assertValidPlatform, getUpdatePolicyFromVersion, isDeviceInRolloutBucket, isSupportedChannel, isVersionGreater, isWithinRolloutWindow, sortVersionsDesc, SUPPORTED_CHANNELS, } from '../utils/versioning.js';
-const appDb = () => supabase.schema('application');
-export async function checkForUpdate(installedVersion, os, arch, options) {
-    if (!semver.valid(installedVersion)) {
-        console.error(chalk.red(`❌ Invalid installed version: ${installedVersion}`));
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.checkForUpdate = checkForUpdate;
+const ora_1 = __importDefault(require("ora"));
+const chalk_1 = __importDefault(require("chalk"));
+const semver_1 = __importDefault(require("semver"));
+const index_js_1 = require("../index.js");
+const versioning_js_1 = require("../utils/versioning.js");
+const appDb = () => index_js_1.supabase.schema('application');
+async function checkForUpdate(installedVersion, os, arch, options) {
+    if (!semver_1.default.valid(installedVersion)) {
+        console.error(chalk_1.default.red(`❌ Invalid installed version: ${installedVersion}`));
         process.exit(1);
     }
     try {
-        assertValidPlatform(os, arch);
+        (0, versioning_js_1.assertValidPlatform)(os, arch);
     }
     catch (error) {
-        console.error(chalk.red(`❌ ${error.message}`));
+        console.error(chalk_1.default.red(`❌ ${error.message}`));
         process.exit(1);
     }
-    if (options.channel && !isSupportedChannel(options.channel)) {
-        console.error(chalk.red(`❌ Invalid channel: ${options.channel}`));
-        console.error(chalk.gray(`   Supported channels: ${SUPPORTED_CHANNELS.join(', ')}`));
+    if (options.channel && !(0, versioning_js_1.isSupportedChannel)(options.channel)) {
+        console.error(chalk_1.default.red(`❌ Invalid channel: ${options.channel}`));
+        console.error(chalk_1.default.gray(`   Supported channels: ${versioning_js_1.SUPPORTED_CHANNELS.join(', ')}`));
         process.exit(1);
     }
-    const spinner = ora('Checking update eligibility...').start();
+    const spinner = (0, ora_1.default)('Checking update eligibility...').start();
     try {
         const requestedChannel = options.channel || 'stable';
         const { data: versions, error } = await appDb()
@@ -34,7 +40,7 @@ export async function checkForUpdate(installedVersion, os, arch, options) {
             throw error;
         if (!versions || versions.length === 0) {
             spinner.stop();
-            console.log(chalk.yellow('No published versions available'));
+            console.log(chalk_1.default.yellow('No published versions available'));
             return;
         }
         const versionIds = versions.map((version) => version.id);
@@ -67,20 +73,20 @@ export async function checkForUpdate(installedVersion, os, arch, options) {
             ...version,
             platforms: buildsByVersionId.get(version.id) || []
         }));
-        const orderedVersions = sortVersionsDesc(versionsWithPlatforms, (v) => v.version_name);
+        const orderedVersions = (0, versioning_js_1.sortVersionsDesc)(versionsWithPlatforms, (v) => v.version_name);
         const now = new Date();
         const eligible = orderedVersions.find((version) => {
-            if (!isVersionGreater(version.version_name, installedVersion)) {
+            if (!(0, versioning_js_1.isVersionGreater)(version.version_name, installedVersion)) {
                 return false;
             }
-            if (!options.allowPrerelease && semver.prerelease(version.version_name)) {
+            if (!options.allowPrerelease && semver_1.default.prerelease(version.version_name)) {
                 return false;
             }
-            const policy = getUpdatePolicyFromVersion(version);
-            if (!isWithinRolloutWindow(policy, now)) {
+            const policy = (0, versioning_js_1.getUpdatePolicyFromVersion)(version);
+            if (!(0, versioning_js_1.isWithinRolloutWindow)(policy, now)) {
                 return false;
             }
-            if (!isDeviceInRolloutBucket(options.deviceId, policy.rolloutPercentage)) {
+            if (!(0, versioning_js_1.isDeviceInRolloutBucket)(options.deviceId, policy.rolloutPercentage)) {
                 return false;
             }
             const builds = Array.isArray(version.platforms) ? version.platforms : [];
@@ -91,37 +97,37 @@ export async function checkForUpdate(installedVersion, os, arch, options) {
         });
         spinner.stop();
         if (!eligible) {
-            console.log(chalk.green('✓ No update required'));
-            console.log(chalk.gray(`  Installed version: ${installedVersion}`));
-            console.log(chalk.gray(`  Channel: ${requestedChannel}`));
+            console.log(chalk_1.default.green('✓ No update required'));
+            console.log(chalk_1.default.gray(`  Installed version: ${installedVersion}`));
+            console.log(chalk_1.default.gray(`  Channel: ${requestedChannel}`));
             return;
         }
-        const policy = getUpdatePolicyFromVersion(eligible);
+        const policy = (0, versioning_js_1.getUpdatePolicyFromVersion)(eligible);
         const builds = Array.isArray(eligible.platforms) ? eligible.platforms : [];
         const selectedBuild = selectPreferredBuild(builds, os, arch);
         const isMinSupportedBlocked = !!policy.minSupportedVersion &&
-            !!semver.valid(policy.minSupportedVersion) &&
-            semver.lt(installedVersion, policy.minSupportedVersion);
+            !!semver_1.default.valid(policy.minSupportedVersion) &&
+            semver_1.default.lt(installedVersion, policy.minSupportedVersion);
         const mandatory = Boolean(eligible.is_mandatory || isMinSupportedBlocked);
-        console.log(chalk.bold('\nUpdate available:'));
-        console.log(chalk.gray(`  Installed: ${installedVersion}`));
-        console.log(chalk.gray(`  Target: ${eligible.version_name}`));
-        console.log(chalk.gray(`  Channel: ${policy.channel}`));
-        console.log(chalk.gray(`  Mandatory: ${mandatory ? 'yes' : 'no'}`));
+        console.log(chalk_1.default.bold('\nUpdate available:'));
+        console.log(chalk_1.default.gray(`  Installed: ${installedVersion}`));
+        console.log(chalk_1.default.gray(`  Target: ${eligible.version_name}`));
+        console.log(chalk_1.default.gray(`  Channel: ${policy.channel}`));
+        console.log(chalk_1.default.gray(`  Mandatory: ${mandatory ? 'yes' : 'no'}`));
         if (policy.minSupportedVersion) {
-            console.log(chalk.gray(`  Min Supported: ${policy.minSupportedVersion}`));
+            console.log(chalk_1.default.gray(`  Min Supported: ${policy.minSupportedVersion}`));
         }
         if (selectedBuild) {
-            console.log(chalk.gray(`  Build Type: ${selectedBuild.type} (${selectedBuild.distribution || 'direct'})`));
-            console.log(chalk.gray(`  URL: ${selectedBuild.url}`));
+            console.log(chalk_1.default.gray(`  Build Type: ${selectedBuild.type} (${selectedBuild.distribution || 'direct'})`));
+            console.log(chalk_1.default.gray(`  URL: ${selectedBuild.url}`));
             if (selectedBuild.sha256Checksum) {
-                console.log(chalk.gray(`  SHA256: ${selectedBuild.sha256Checksum}`));
+                console.log(chalk_1.default.gray(`  SHA256: ${selectedBuild.sha256Checksum}`));
             }
         }
-        console.log(chalk.gray(`  Release Notes: ${eligible.release_notes || 'N/A'}`));
+        console.log(chalk_1.default.gray(`  Release Notes: ${eligible.release_notes || 'N/A'}`));
     }
     catch (error) {
-        spinner.fail(chalk.red(`Failed to check update: ${error.message}`));
+        spinner.fail(chalk_1.default.red(`Failed to check update: ${error.message}`));
         process.exit(1);
     }
 }

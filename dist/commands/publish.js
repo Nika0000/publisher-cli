@@ -1,12 +1,19 @@
-import ora from 'ora';
-import chalk from 'chalk';
-import prompts from 'prompts';
-import { supabase, cdnUrl } from '../index.js';
-import { getUpdatePolicyFromVersion, sortVersionsDesc } from '../utils/versioning.js';
-const appDb = () => supabase.schema('application');
-export async function publishVersion(version, options) {
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.publishVersion = publishVersion;
+exports.generateManifest = generateManifest;
+const ora_1 = __importDefault(require("ora"));
+const chalk_1 = __importDefault(require("chalk"));
+const prompts_1 = __importDefault(require("prompts"));
+const index_js_1 = require("../index.js");
+const versioning_js_1 = require("../utils/versioning.js");
+const appDb = () => index_js_1.supabase.schema('application');
+async function publishVersion(version, options) {
     const channel = options.channel || 'stable';
-    const spinner = ora(`Checking version ${version}...`).start();
+    const spinner = (0, ora_1.default)(`Checking version ${version}...`).start();
     try {
         // Get version ID
         const { data: versionData, error: versionError } = await appDb()
@@ -47,11 +54,11 @@ export async function publishVersion(version, options) {
         });
         // If there are missing builds, prompt user to select fallbacks
         if (missingBuilds.length > 0) {
-            console.log(chalk.yellow(`\n⚠ Missing ${missingBuilds.length} installer build(s):`));
+            console.log(chalk_1.default.yellow(`\n⚠ Missing ${missingBuilds.length} installer build(s):`));
             missingBuilds.forEach(b => {
-                console.log(chalk.gray(`  - ${b.os}/${b.arch}/${b.type}`));
+                console.log(chalk_1.default.gray(`  - ${b.os}/${b.arch}/${b.type}`));
             });
-            console.log(chalk.blue('\nYou can assign builds from previous versions as fallbacks.'));
+            console.log(chalk_1.default.blue('\nYou can assign builds from previous versions as fallbacks.'));
             const { data: channelVersions, error: channelVersionsError } = await appDb()
                 .from('versions')
                 .select('id, version_name')
@@ -63,7 +70,7 @@ export async function publishVersion(version, options) {
             const channelVersionIds = (channelVersions || []).map((v) => v.id);
             for (const missing of missingBuilds) {
                 if (channelVersionIds.length === 0) {
-                    console.log(chalk.red(`\n✗ No versions found in channel ${channel}`));
+                    console.log(chalk_1.default.red(`\n✗ No versions found in channel ${channel}`));
                     continue;
                 }
                 // Find available builds for this platform combination
@@ -91,8 +98,8 @@ export async function publishVersion(version, options) {
                 if (availError)
                     throw availError;
                 if (!availableBuilds || availableBuilds.length === 0) {
-                    console.log(chalk.red(`\n✗ No builds found for ${missing.os}/${missing.arch}/${missing.type}`));
-                    console.log(chalk.gray(`  Skipping this platform...`));
+                    console.log(chalk_1.default.red(`\n✗ No builds found for ${missing.os}/${missing.arch}/${missing.type}`));
+                    console.log(chalk_1.default.gray(`  Skipping this platform...`));
                     continue;
                 }
                 // Create choices for prompts
@@ -105,18 +112,18 @@ export async function publishVersion(version, options) {
                     }
                 }));
                 choices.push({
-                    title: chalk.gray('Skip this platform'),
+                    title: chalk_1.default.gray('Skip this platform'),
                     value: null
                 });
-                const response = await prompts({
+                const response = await (0, prompts_1.default)({
                     type: 'select',
                     name: 'build',
-                    message: `Select fallback build for ${chalk.bold(missing.os)}/${chalk.bold(missing.arch)}/${chalk.bold(missing.type)}:`,
+                    message: `Select fallback build for ${chalk_1.default.bold(missing.os)}/${chalk_1.default.bold(missing.arch)}/${chalk_1.default.bold(missing.type)}:`,
                     choices,
                     initial: 0
                 });
                 if (response.build) {
-                    const assignSpinner = ora(`Assigning build from ${response.build.version}...`).start();
+                    const assignSpinner = (0, ora_1.default)(`Assigning build from ${response.build.version}...`).start();
                     const { error: insertError } = await appDb()
                         .from('builds')
                         .insert({
@@ -142,33 +149,33 @@ export async function publishVersion(version, options) {
                     }
                 }
                 else {
-                    console.log(chalk.gray(`  Skipped ${missing.os}/${missing.arch}/${missing.type}`));
+                    console.log(chalk_1.default.gray(`  Skipped ${missing.os}/${missing.arch}/${missing.type}`));
                 }
             }
         }
         const review = await buildVersionManifest(version, channel);
         const storagePrefix = versionData.storage_key_prefix || `releases/${channel}/${version}`;
         spinner.stop();
-        console.log(chalk.yellow('\n⚠ Publish Alert'));
-        console.log(chalk.gray(`  Channel: ${channel}`));
-        console.log(chalk.gray(`  Version Manifest: archive/${storagePrefix}/manifest.json`));
-        console.log(chalk.gray(`  Channel Manifest: archive/channels/${channel}/manifest.json`));
-        console.log(chalk.gray(`  Platforms in version manifest: ${review.manifest.platforms.length}`));
-        console.log(chalk.gray(`  Mandatory: ${review.manifest.isMandatory ? 'yes' : 'no'}`));
+        console.log(chalk_1.default.yellow('\n⚠ Publish Alert'));
+        console.log(chalk_1.default.gray(`  Channel: ${channel}`));
+        console.log(chalk_1.default.gray(`  Version Manifest: archive/${storagePrefix}/manifest.json`));
+        console.log(chalk_1.default.gray(`  Channel Manifest: archive/channels/${channel}/manifest.json`));
+        console.log(chalk_1.default.gray(`  Platforms in version manifest: ${review.manifest.platforms.length}`));
+        console.log(chalk_1.default.gray(`  Mandatory: ${review.manifest.isMandatory ? 'yes' : 'no'}`));
         if (!options.yes) {
-            const response = await prompts({
+            const response = await (0, prompts_1.default)({
                 type: 'confirm',
                 name: 'confirmPublish',
                 initial: false,
                 message: `Review complete. Publish ${version} to ${channel} and upload manifests?`,
             });
             if (!response.confirmPublish) {
-                console.log(chalk.yellow('Publish canceled by user.'));
+                console.log(chalk_1.default.yellow('Publish canceled by user.'));
                 return;
             }
         }
         // Now publish the version
-        const publishSpinner = ora('Publishing version...').start();
+        const publishSpinner = (0, ora_1.default)('Publishing version...').start();
         const { error: updateError } = await appDb()
             .from('versions')
             .update({ is_published: true })
@@ -181,23 +188,23 @@ export async function publishVersion(version, options) {
         await generateManifest(version, { showSpinner: false, channel });
         // Generate channel-latest manifest (with latest build per platform)
         await generateLatestManifest(channel);
-        publishSpinner.succeed(chalk.green(`✓ Version ${version} (${channel}) published`));
-        console.log(chalk.gray(`  Manifests generated:`));
-        console.log(chalk.gray(`    - archive/${storagePrefix}/manifest.json`));
-        console.log(chalk.gray(`    - archive/channels/${channel}/manifest.json`));
+        publishSpinner.succeed(chalk_1.default.green(`✓ Version ${version} (${channel}) published`));
+        console.log(chalk_1.default.gray(`  Manifests generated:`));
+        console.log(chalk_1.default.gray(`    - archive/${storagePrefix}/manifest.json`));
+        console.log(chalk_1.default.gray(`    - archive/channels/${channel}/manifest.json`));
     }
     catch (error) {
-        console.error(chalk.red(`\nFailed to publish version: ${error.message}`));
+        console.error(chalk_1.default.red(`\nFailed to publish version: ${error.message}`));
         process.exit(1);
     }
 }
-export async function generateManifest(version, options = {}) {
+async function generateManifest(version, options = {}) {
     const showSpinner = options.showSpinner ?? true;
     const channel = options.channel || 'stable';
-    const spinner = showSpinner ? ora(`Generating manifest for ${version} (${channel})...`).start() : null;
+    const spinner = showSpinner ? (0, ora_1.default)(`Generating manifest for ${version} (${channel})...`).start() : null;
     try {
         const { manifest, manifestPath } = await buildVersionManifest(version, channel);
-        const { error: uploadError } = await supabase.storage
+        const { error: uploadError } = await index_js_1.supabase.storage
             .from('archive')
             .upload(manifestPath, JSON.stringify(manifest, null, 2), {
             contentType: 'application/json',
@@ -206,14 +213,14 @@ export async function generateManifest(version, options = {}) {
         if (uploadError)
             throw uploadError;
         if (spinner) {
-            spinner.succeed(chalk.green(`✓ Manifest generated for ${version}`));
-            const normalizedCdnUrl = cdnUrl.endsWith('/') ? cdnUrl : `${cdnUrl}/`;
-            console.log(chalk.gray(`  URL: ${normalizedCdnUrl}archive/${manifestPath}`));
+            spinner.succeed(chalk_1.default.green(`✓ Manifest generated for ${version}`));
+            const normalizedCdnUrl = index_js_1.cdnUrl.endsWith('/') ? index_js_1.cdnUrl : `${index_js_1.cdnUrl}/`;
+            console.log(chalk_1.default.gray(`  URL: ${normalizedCdnUrl}archive/${manifestPath}`));
         }
     }
     catch (error) {
         if (spinner) {
-            spinner.fail(chalk.red(`Failed to generate manifest: ${error.message}`));
+            spinner.fail(chalk_1.default.red(`Failed to generate manifest: ${error.message}`));
             process.exit(1);
         }
         throw error;
@@ -238,7 +245,7 @@ async function buildVersionManifest(version, channel) {
         throw buildsError;
     }
     const platforms = buildPlatformsArray((builds || []).map(mapBuildRowToPlatformPayload));
-    const updatePolicy = getUpdatePolicyFromVersion(versionData);
+    const updatePolicy = (0, versioning_js_1.getUpdatePolicyFromVersion)(versionData);
     const storagePrefix = versionData.storage_key_prefix || `releases/${channel}/${version}`;
     const manifest = {
         name: 'App',
@@ -288,9 +295,9 @@ async function generateLatestManifest(channel) {
             platforms: buildsByVersionId.get(version.id) || []
         }));
         // Prefer semantic version order to avoid created_at drift
-        const orderedVersions = sortVersionsDesc(versionsWithPlatforms, (v) => v.version_name);
+        const orderedVersions = (0, versioning_js_1.sortVersionsDesc)(versionsWithPlatforms, (v) => v.version_name);
         const latestVersion = orderedVersions[0];
-        const latestPolicy = getUpdatePolicyFromVersion(latestVersion);
+        const latestPolicy = (0, versioning_js_1.getUpdatePolicyFromVersion)(latestVersion);
         // Pick latest build per os/arch/type based on semantic version order
         const selectedBuildBySource = new Map();
         for (const version of orderedVersions) {
@@ -320,7 +327,7 @@ async function generateLatestManifest(channel) {
             platforms: latestPlatforms
         };
         // Upload channel latest manifest
-        const { error: uploadError } = await supabase.storage
+        const { error: uploadError } = await index_js_1.supabase.storage
             .from('archive')
             .upload(`channels/${channel}/manifest.json`, JSON.stringify(manifest, null, 2), {
             contentType: 'application/json',

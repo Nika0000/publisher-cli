@@ -1,17 +1,20 @@
 #!/usr/bin/env node
-import { Command } from 'commander';
-import { config } from 'dotenv';
-import { createClient } from '@supabase/supabase-js';
-import { createVersion, listVersions, setVersionPolicy } from './commands/version.js';
-import { uploadBuild, listBuilds, createBuild } from './commands/build.js';
-import { publishVersion, generateManifest } from './commands/publish.js';
-import { setConfig, getConfig, deleteConfig, resetConfig } from './commands/config.js';
-import { checkForUpdate } from './commands/update.js';
-import { loadConfig } from './utils/config.js';
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.cdnUrl = exports.supabase = void 0;
+const commander_1 = require("commander");
+const dotenv_1 = require("dotenv");
+const supabase_js_1 = require("@supabase/supabase-js");
+const version_js_1 = require("./commands/version.js");
+const build_js_1 = require("./commands/build.js");
+const publish_js_1 = require("./commands/publish.js");
+const config_js_1 = require("./commands/config.js");
+const update_js_1 = require("./commands/update.js");
+const config_js_2 = require("./utils/config.js");
 // Load environment variables from .env file (if exists)
-config();
+(0, dotenv_1.config)();
 // Load from config file if env vars not set
-const configFile = loadConfig();
+const configFile = (0, config_js_2.loadConfig)();
 // Get credentials from env vars or config file
 const SUPABASE_URL = process.env.SUPABASE_URL || configFile.SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || configFile.SUPABASE_ANON_KEY;
@@ -36,17 +39,17 @@ if (!isConfigCommand && (!SUPABASE_URL || !SUPABASE_ANON_KEY || !APP_PUBLISHER_K
     process.exit(1);
 }
 // Create Supabase client (only if credentials are available)
-export const supabase = isConfigCommand
+exports.supabase = isConfigCommand
     ? null
-    : createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    : (0, supabase_js_1.createClient)(SUPABASE_URL, SUPABASE_ANON_KEY, {
         global: {
             headers: {
                 Authorization: `Bearer ${APP_PUBLISHER_KEY}`,
             },
         },
     });
-export const cdnUrl = CDN_URL || '';
-const program = new Command();
+exports.cdnUrl = CDN_URL || '';
+const program = new commander_1.Command();
 program
     .name('publisher')
     .description('Publisher CLI for app version and build management')
@@ -55,19 +58,19 @@ program
 program
     .command('config:set <key> <value>')
     .description('Set a configuration value')
-    .action(setConfig);
+    .action(config_js_1.setConfig);
 program
     .command('config:get [key]')
     .description('Get configuration value(s)')
-    .action(getConfig);
+    .action(config_js_1.getConfig);
 program
     .command('config:delete <key>')
     .description('Delete a configuration value')
-    .action(deleteConfig);
+    .action(config_js_1.deleteConfig);
 program
     .command('config:reset')
     .description('Clear all configuration')
-    .action(resetConfig);
+    .action(config_js_1.resetConfig);
 // Version commands
 program
     .command('version:create <version>')
@@ -80,7 +83,7 @@ program
     .option('--rollout <percentage>', 'Rollout percentage (0-100)', '100')
     .option('--rollout-start-at <isoDate>', 'Rollout start date (ISO-8601)')
     .option('--rollout-end-at <isoDate>', 'Rollout end date (ISO-8601)')
-    .action(createVersion);
+    .action(version_js_1.createVersion);
 program
     .command('version:policy <version>')
     .description('Update release policy for a version in a channel')
@@ -89,7 +92,7 @@ program
     .option('--rollout <percentage>', 'Rollout percentage (0-100)')
     .option('--rollout-start-at <isoDate>', 'Rollout start date (ISO-8601)')
     .option('--rollout-end-at <isoDate>', 'Rollout end date (ISO-8601)')
-    .action(setVersionPolicy);
+    .action(version_js_1.setVersionPolicy);
 program
     .command('version:list')
     .description('List all versions')
@@ -97,7 +100,7 @@ program
     .option('--channel <channel>', 'Filter by release channel (stable, beta, alpha)')
     .option('-l, --limit <limit>', 'Number of versions to show', '20')
     .option('-o, --offset <offset>', 'Offset for pagination', '0')
-    .action(listVersions);
+    .action(version_js_1.listVersions);
 // Build commands
 program
     .command('build:upload <version> <file>')
@@ -107,7 +110,7 @@ program
     .option('-o, --os <os>', 'Operating system (macos, windows, linux, ios, android)')
     .option('-a, --arch <arch>', 'Architecture (arm64, x64, x86)')
     .option('-t, --type <type>', 'Build type (patch, installer)')
-    .action(uploadBuild);
+    .action(build_js_1.uploadBuild);
 program
     .command('build:create <version> <os> <arch> <type> <url>')
     .description('Create a build record with external URL (e.g., App Store, TestFlight)')
@@ -117,30 +120,30 @@ program
     .option('--sha256 <hash>', 'SHA256 checksum')
     .option('--sha512 <hash>', 'SHA512 checksum')
     .option('-p, --package-name <name>', 'Package name')
-    .action(createBuild);
+    .action(build_js_1.createBuild);
 program
     .command('build:list <version>')
     .description('List all builds for a version')
     .option('--channel <channel>', 'Release channel (stable, beta, alpha)', 'stable')
-    .action(listBuilds);
+    .action(build_js_1.listBuilds);
 // Publish commands
 program
     .command('publish <version>')
     .description('Publish a version and generate manifests')
     .option('--channel <channel>', 'Release channel (stable, beta, alpha)', 'stable')
     .option('-y, --yes', 'Skip publish confirmation prompt', false)
-    .action(publishVersion);
+    .action(publish_js_1.publishVersion);
 program
     .command('manifest:generate <version>')
     .description('Generate manifest file for a version')
     .option('--channel <channel>', 'Release channel (stable, beta, alpha)', 'stable')
-    .action(generateManifest);
+    .action(publish_js_1.generateManifest);
 program
     .command('update:check <installedVersion> <os> <arch>')
     .description('Evaluate if an installed app should update for a specific platform')
     .option('--channel <channel>', 'Release channel (stable, beta, alpha)', 'stable')
     .option('--device-id <deviceId>', 'Stable device identifier for rollout bucketing')
     .option('--allow-prerelease', 'Allow pre-release target versions', false)
-    .action(checkForUpdate);
+    .action(update_js_1.checkForUpdate);
 program.parse();
 //# sourceMappingURL=index.js.map

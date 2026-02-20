@@ -1,11 +1,19 @@
-import ora from 'ora';
-import chalk from 'chalk';
-import { readFileSync, statSync, createReadStream } from 'fs';
-import { basename } from 'path';
-import { createHash } from 'crypto';
-import mime from 'mime-types';
-import { supabase, cdnUrl } from '../index.js';
-import { assertValidPlatform, isSupportedDistribution, SUPPORTED_DISTRIBUTIONS } from '../utils/versioning.js';
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.uploadBuild = uploadBuild;
+exports.createBuild = createBuild;
+exports.listBuilds = listBuilds;
+const ora_1 = __importDefault(require("ora"));
+const chalk_1 = __importDefault(require("chalk"));
+const fs_1 = require("fs");
+const path_1 = require("path");
+const crypto_1 = require("crypto");
+const mime_types_1 = __importDefault(require("mime-types"));
+const index_js_1 = require("../index.js");
+const versioning_js_1 = require("../utils/versioning.js");
 function parseFilename(filename) {
     const match = filename.match(/^spacerun-[0-9A-Za-z.+-]+-([A-Za-z0-9_]+)-([A-Za-z0-9_]+)\.(tar\.gz|zip|dmg|msi|AppImage|deb|rpm|apk)$/);
     if (!match)
@@ -18,8 +26,8 @@ function parseFilename(filename) {
 }
 function calculateChecksum(filePath, algorithm = 'sha256') {
     return new Promise((resolve, reject) => {
-        const hash = createHash(algorithm);
-        const stream = createReadStream(filePath);
+        const hash = (0, crypto_1.createHash)(algorithm);
+        const stream = (0, fs_1.createReadStream)(filePath);
         stream.on('data', (chunk) => hash.update(chunk));
         stream.on('end', () => resolve(hash.digest('hex')));
         stream.on('error', reject);
@@ -43,22 +51,22 @@ function getContentType(filePath) {
         return 'application/octet-stream';
     if (lower.endsWith('.deb'))
         return 'application/octet-stream';
-    return mime.lookup(filePath) || 'application/octet-stream';
+    return mime_types_1.default.lookup(filePath) || 'application/octet-stream';
 }
 function buildCdnUrl(baseUrl, storagePath) {
     const normalizedBase = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
     return `${normalizedBase}archive/${storagePath}`;
 }
-export async function uploadBuild(version, filePath, options) {
-    const spinner = ora('Uploading build...').start();
+async function uploadBuild(version, filePath, options) {
+    const spinner = (0, ora_1.default)('Uploading build...').start();
     try {
         const channel = options.channel || 'stable';
         const distribution = options.distribution || 'direct';
-        if (!isSupportedDistribution(distribution)) {
-            throw new Error(`Invalid distribution: ${distribution}. Supported: ${SUPPORTED_DISTRIBUTIONS.join(', ')}`);
+        if (!(0, versioning_js_1.isSupportedDistribution)(distribution)) {
+            throw new Error(`Invalid distribution: ${distribution}. Supported: ${versioning_js_1.SUPPORTED_DISTRIBUTIONS.join(', ')}`);
         }
         // Get version ID
-        const { data: versionData, error: versionError } = await supabase
+        const { data: versionData, error: versionError } = await index_js_1.supabase
             .schema('application')
             .from('versions')
             .select('id, release_channel, storage_key_prefix')
@@ -68,9 +76,9 @@ export async function uploadBuild(version, filePath, options) {
         if (versionError || !versionData) {
             throw new Error(`Version ${version} (${channel}) not found`);
         }
-        const filename = basename(filePath);
-        const fileBuffer = readFileSync(filePath);
-        const fileSize = statSync(filePath).size;
+        const filename = (0, path_1.basename)(filePath);
+        const fileBuffer = (0, fs_1.readFileSync)(filePath);
+        const fileSize = (0, fs_1.statSync)(filePath).size;
         const mimeType = getContentType(filePath);
         // Calculate checksums
         spinner.text = 'Calculating checksums...';
@@ -85,12 +93,12 @@ export async function uploadBuild(version, filePath, options) {
             throw new Error('Could not determine os/arch/type from filename. Please specify with --os, --arch, --type options.\n' +
                 'Expected filename format: spacerun-{version}-{arch}-{os}.{ext}');
         }
-        assertValidPlatform(os, arch, type);
+        (0, versioning_js_1.assertValidPlatform)(os, arch, type);
         spinner.text = `Uploading ${filename} to storage...`;
         // Upload to storage
         const storagePrefix = versionData.storage_key_prefix || `releases/${versionData.release_channel}/${version}`;
         const storagePath = `${storagePrefix}/${os}/${arch}/${filename}`;
-        const { error: uploadError } = await supabase.storage
+        const { error: uploadError } = await index_js_1.supabase.storage
             .from('archive')
             .upload(storagePath, fileBuffer, {
             contentType: mimeType,
@@ -100,8 +108,8 @@ export async function uploadBuild(version, filePath, options) {
             throw uploadError;
         spinner.text = 'Updating database...';
         // Insert/update platform build record
-        const buildUrl = buildCdnUrl(cdnUrl, storagePath);
-        const { error: dbError } = await supabase
+        const buildUrl = buildCdnUrl(index_js_1.cdnUrl, storagePath);
+        const { error: dbError } = await index_js_1.supabase
             .schema('application')
             .from('builds')
             .upsert({
@@ -120,31 +128,31 @@ export async function uploadBuild(version, filePath, options) {
         });
         if (dbError)
             throw dbError;
-        spinner.succeed(chalk.green(`✓ Build uploaded successfully`));
-        console.log(chalk.gray(`  Version: ${version}`));
-        console.log(chalk.gray(`  Channel: ${versionData.release_channel}`));
-        console.log(chalk.gray(`  Platform: ${os}/${arch}`));
-        console.log(chalk.gray(`  Type: ${type} (${distribution})`));
-        console.log(chalk.gray(`  Size: ${(fileSize / 1024 / 1024).toFixed(2)} MB`));
-        console.log(chalk.gray(`  SHA256: ${sha256}`));
-        console.log(chalk.gray(`  SHA512: ${sha512.substring(0, 32)}...`));
-        console.log(chalk.gray(`  URL: ${buildUrl}`));
+        spinner.succeed(chalk_1.default.green(`✓ Build uploaded successfully`));
+        console.log(chalk_1.default.gray(`  Version: ${version}`));
+        console.log(chalk_1.default.gray(`  Channel: ${versionData.release_channel}`));
+        console.log(chalk_1.default.gray(`  Platform: ${os}/${arch}`));
+        console.log(chalk_1.default.gray(`  Type: ${type} (${distribution})`));
+        console.log(chalk_1.default.gray(`  Size: ${(fileSize / 1024 / 1024).toFixed(2)} MB`));
+        console.log(chalk_1.default.gray(`  SHA256: ${sha256}`));
+        console.log(chalk_1.default.gray(`  SHA512: ${sha512.substring(0, 32)}...`));
+        console.log(chalk_1.default.gray(`  URL: ${buildUrl}`));
     }
     catch (error) {
-        spinner.fail(chalk.red(`Failed to upload build: ${error.message}`));
+        spinner.fail(chalk_1.default.red(`Failed to upload build: ${error.message}`));
         process.exit(1);
     }
 }
-export async function createBuild(version, os, arch, type, url, options) {
-    const spinner = ora('Creating build record...').start();
+async function createBuild(version, os, arch, type, url, options) {
+    const spinner = (0, ora_1.default)('Creating build record...').start();
     try {
         const channel = options.channel || 'stable';
         const distribution = options.distribution || 'store';
-        if (!isSupportedDistribution(distribution)) {
-            throw new Error(`Invalid distribution: ${distribution}. Supported: ${SUPPORTED_DISTRIBUTIONS.join(', ')}`);
+        if (!(0, versioning_js_1.isSupportedDistribution)(distribution)) {
+            throw new Error(`Invalid distribution: ${distribution}. Supported: ${versioning_js_1.SUPPORTED_DISTRIBUTIONS.join(', ')}`);
         }
         // Get version ID
-        const { data: versionData, error: versionError } = await supabase
+        const { data: versionData, error: versionError } = await index_js_1.supabase
             .schema('application')
             .from('versions')
             .select('id, release_channel')
@@ -158,12 +166,12 @@ export async function createBuild(version, os, arch, type, url, options) {
         if (!os || !arch || !type || !url) {
             throw new Error('Missing required fields: os, arch, type, url');
         }
-        assertValidPlatform(os, arch, type);
+        (0, versioning_js_1.assertValidPlatform)(os, arch, type);
         // Generate package name if not provided
         const packageName = options.packageName || `${os}-${arch}-${type}-external`;
         spinner.text = 'Inserting build record...';
         // Insert build record
-        const { error: dbError } = await supabase
+        const { error: dbError } = await index_js_1.supabase
             .schema('application')
             .from('builds')
             .upsert({
@@ -186,30 +194,30 @@ export async function createBuild(version, os, arch, type, url, options) {
         });
         if (dbError)
             throw dbError;
-        spinner.succeed(chalk.green(`✓ Build record created successfully`));
-        console.log(chalk.gray(`  Version: ${version}`));
-        console.log(chalk.gray(`  Channel: ${versionData.release_channel}`));
-        console.log(chalk.gray(`  Platform: ${os}/${arch}`));
-        console.log(chalk.gray(`  Type: ${type} (${distribution})`));
-        console.log(chalk.gray(`  Package: ${packageName}`));
-        console.log(chalk.gray(`  URL: ${url}`));
+        spinner.succeed(chalk_1.default.green(`✓ Build record created successfully`));
+        console.log(chalk_1.default.gray(`  Version: ${version}`));
+        console.log(chalk_1.default.gray(`  Channel: ${versionData.release_channel}`));
+        console.log(chalk_1.default.gray(`  Platform: ${os}/${arch}`));
+        console.log(chalk_1.default.gray(`  Type: ${type} (${distribution})`));
+        console.log(chalk_1.default.gray(`  Package: ${packageName}`));
+        console.log(chalk_1.default.gray(`  URL: ${url}`));
         if (options.size) {
-            console.log(chalk.gray(`  Size: ${(options.size / 1024 / 1024).toFixed(2)} MB`));
+            console.log(chalk_1.default.gray(`  Size: ${(options.size / 1024 / 1024).toFixed(2)} MB`));
         }
         if (options.sha256) {
-            console.log(chalk.gray(`  SHA256: ${options.sha256}`));
+            console.log(chalk_1.default.gray(`  SHA256: ${options.sha256}`));
         }
     }
     catch (error) {
-        spinner.fail(chalk.red(`Failed to create build: ${error.message}`));
+        spinner.fail(chalk_1.default.red(`Failed to create build: ${error.message}`));
         process.exit(1);
     }
 }
-export async function listBuilds(version, options) {
-    const spinner = ora(`Fetching builds for ${version}...`).start();
+async function listBuilds(version, options) {
+    const spinner = (0, ora_1.default)(`Fetching builds for ${version}...`).start();
     try {
         const channel = options.channel || 'stable';
-        const { data: versionData, error: versionError } = await supabase
+        const { data: versionData, error: versionError } = await index_js_1.supabase
             .schema('application')
             .from('versions')
             .select('id, release_channel')
@@ -219,7 +227,7 @@ export async function listBuilds(version, options) {
         if (versionError || !versionData) {
             throw new Error(`Version ${version} (${channel}) not found`);
         }
-        const { data, error } = await supabase
+        const { data, error } = await index_js_1.supabase
             .schema('application')
             .from('builds')
             .select('*')
@@ -230,21 +238,21 @@ export async function listBuilds(version, options) {
             throw error;
         spinner.stop();
         if (!data || data.length === 0) {
-            console.log(chalk.yellow(`No builds found for version ${version}`));
+            console.log(chalk_1.default.yellow(`No builds found for version ${version}`));
             return;
         }
-        console.log(chalk.bold(`\nBuilds for ${version} (${versionData.release_channel}):`));
+        console.log(chalk_1.default.bold(`\nBuilds for ${version} (${versionData.release_channel}):`));
         data.forEach((build) => {
-            const external = build.platform_metadata?.external ? chalk.blue(' [EXTERNAL]') : '';
+            const external = build.platform_metadata?.external ? chalk_1.default.blue(' [EXTERNAL]') : '';
             const sizeMB = build.size ? (build.size / 1024 / 1024).toFixed(2) : '0.00';
-            console.log(`  ${chalk.bold(`${build.os}/${build.arch}`)} (${build.type}/${build.distribution || 'direct'})${external}`);
-            console.log(chalk.gray(`    Package: ${build.package_name}`));
-            console.log(chalk.gray(`    Size: ${sizeMB} MB`));
-            console.log(chalk.gray(`    URL: ${build.url}`));
+            console.log(`  ${chalk_1.default.bold(`${build.os}/${build.arch}`)} (${build.type}/${build.distribution || 'direct'})${external}`);
+            console.log(chalk_1.default.gray(`    Package: ${build.package_name}`));
+            console.log(chalk_1.default.gray(`    Size: ${sizeMB} MB`));
+            console.log(chalk_1.default.gray(`    URL: ${build.url}`));
         });
     }
     catch (error) {
-        spinner.fail(chalk.red(`Failed to list builds: ${error.message}`));
+        spinner.fail(chalk_1.default.red(`Failed to list builds: ${error.message}`));
         process.exit(1);
     }
 }
