@@ -1,13 +1,20 @@
 {
-  "name": "@spacerun/archive-cli",
+  "name": "publisher-cli",
   "version": "1.0.0",
-  "description": "CLI tool to manage Spacerun app versions and builds",
+  "description": "Publisher CLI for app versions, channels, builds, and manifests",
   "main": "dist/index.js",
+  "type": "module",
   "bin": {
-    "archive": "./dist/index.js"
+    "publisher": "./dist/index.js"
   },
+  "files": [
+    "dist",
+    "README.md",
+    "manifest.schema.json"
+  ],
   "scripts": {
     "build": "tsc",
+    "prepare": "npm run build",
     "dev": "tsx src/index.ts",
     "start": "node dist/index.js",
     "pkg": "npm run build && pkg . --compress GZip",
@@ -22,25 +29,39 @@
     "assets": [],
     "outputPath": "bin"
   },
-  "keywords": ["spacerun", "version", "cli", "deployment"],
-  "author": "Spacerun",
+  "keywords": [
+    "publisher",
+    "version",
+    "cli",
+    "deployment"
+  ],
+  "author": "Publisher CLI",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SpacerunApp/publisher-cli.git"
+  },
+  "homepage": "https://github.com/SpacerunApp/publisher-cli#readme",
+  "bugs": {
+    "url": "https://github.com/SpacerunApp/publisher-cli/issues"
+  },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
+    "chalk": "^5.3.0",
     "commander": "^12.0.0",
     "dotenv": "^16.4.0",
-    "ora": "^8.0.1",
-    "chalk": "^5.3.0",
     "glob": "^11.0.0",
+    "jsonwebtoken": "^9.0.3",
     "mime-types": "^2.1.35",
-    "semver": "^7.6.0",
-    "prompts": "^2.4.2"
+    "ora": "^8.0.1",
+    "prompts": "^2.4.2",
+    "semver": "^7.6.0"
   },
   "devDependencies": {
     "@types/mime-types": "^2.1.4",
     "@types/node": "^20.11.0",
-    "@types/semver": "^7.5.6",
     "@types/prompts": "^2.4.9",
+    "@types/semver": "^7.5.6",
     "pkg": "^5.8.1",
     "tsx": "^4.7.0",
     "typescript": "^5.3.3"

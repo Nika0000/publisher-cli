@@ -49,18 +49,15 @@ jobs:
         with:
           node-version: '18'
           cache: 'npm'
-          cache-dependency-path: cli/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - name: Install dependencies
-        working-directory: ./cli
         run: npm ci
 
       - name: Build TypeScript
-        working-directory: ./cli
         run: npm run build
 
       - name: Build executable
-        working-directory: ./cli
         run: |
           if [ "${{ matrix.platform }}" = "macos" ] && [ "${{ matrix.arch }}" = "arm64" ]; then
             npm run pkg:macos-arm64
@@ -76,8 +73,8 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: archive-${{ matrix.platform }}-${{ matrix.arch }}
-          path: cli/bin/archive-${{ matrix.platform }}-${{ matrix.arch }}${{ matrix.ext }}
+          name: publisher-${{ matrix.platform }}-${{ matrix.arch }}
+          path: bin/publisher-${{ matrix.platform }}-${{ matrix.arch }}${{ matrix.ext }}
           if-no-files-found: error
 
   release:
@@ -105,7 +102,6 @@ jobs:
 
       - name: Get version
         id: version
-        working-directory: ./cli
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             # Auto-increment version
@@ -125,7 +121,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add cli/package.json cli/package-lock.json
+          git add package.json package-lock.json
           git commit -m "chore(cli): bump version to ${{ steps.version.outputs.version }}"
           git tag ${{ steps.version.outputs.tag }}
           git push origin main
@@ -134,15 +130,15 @@ jobs:
       - name: Prepare release assets
         run: |
           mkdir -p release
-          find ./artifacts -type f -name 'archive-*' -exec cp {} ./release/ \;
+          find ./artifacts -type f -name 'publisher-*' -exec cp {} ./release/ \;
           ls -lah ./release/
 
       - name: Generate changelog
         id: changelog
         run: |
-          if [ -f cli/CHANGELOG.md ]; then
+          if [ -f CHANGELOG.md ]; then
             # Extract latest changelog section
-            CHANGELOG=$(awk '/^## \[/{if(++count==2)exit;if(count==1)next}count==1' cli/CHANGELOG.md)
+            CHANGELOG=$(awk '/^## \[/{if(++count==2)exit;if(count==1)next}count==1' CHANGELOG.md)
             echo "changelog<<EOF" >> $GITHUB_OUTPUT
             echo "$CHANGELOG" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
@@ -156,22 +152,22 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           name: CLI v${{ steps.version.outputs.version }}
           body: |
-            ## Spacerun Archive CLI v${{ steps.version.outputs.version }}
+            ## Publisher CLI v${{ steps.version.outputs.version }}
             
             ${{ steps.changelog.outputs.changelog }}
             
             ### Installation
             
             Download the appropriate executable for your platform:
-            - **macOS ARM64** (Apple Silicon): `archive-macos-arm64`
-            - **macOS x64** (Intel): `archive-macos-x64`
-            - **Linux x64**: `archive-linux-x64`
-            - **Windows x64**: `archive-win-x64.exe`
+            - **macOS ARM64** (Apple Silicon): `publisher-macos-arm64`
+            - **macOS x64** (Intel): `publisher-macos-x64`
+            - **Linux x64**: `publisher-linux-x64`
+            - **Windows x64**: `publisher-win-x64.exe`
             
             Make the file executable (macOS/Linux):
             ```bash
-            chmod +x archive-*
-            ./archive-* --help
+            chmod +x publisher-*
+            ./publisher-* --help
             ```
             
             ### Checksums

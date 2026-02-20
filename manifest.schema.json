@@ -1,0 +1,223 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://publisher-cli.dev/schemas/manifest.schema.json",
+  "title": "Update Manifest",
+  "description": "Schema for channel-aware release manifests with multi-distribution build sources.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "name",
+    "manifestVersion",
+    "version",
+    "channel",
+    "releaseDate",
+    "isMandatory",
+    "updatePolicy",
+    "platforms"
+  ],
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "manifestVersion": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "version": {
+      "type": "string",
+      "description": "Semantic version string, may include prerelease tags."
+    },
+    "channel": {
+      "type": "string",
+      "enum": ["stable", "beta", "alpha"]
+    },
+    "releaseDate": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "isMandatory": {
+      "type": "boolean"
+    },
+    "releaseNotes": {
+      "type": ["string", "null"]
+    },
+    "changelog": {
+      "type": ["string", "null"]
+    },
+    "updatePolicy": {
+      "$ref": "#/$defs/updatePolicy"
+    },
+    "platforms": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/platformEntry"
+      }
+    }
+  },
+  "$defs": {
+    "updatePolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["channel", "rolloutPercentage"],
+      "properties": {
+        "channel": {
+          "type": "string",
+          "enum": ["stable", "beta", "alpha"]
+        },
+        "minSupportedVersion": {
+          "type": "string"
+        },
+        "rolloutPercentage": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "rolloutStartAt": {
+          "type": ["string", "null"],
+          "format": "date-time"
+        },
+        "rolloutEndAt": {
+          "type": ["string", "null"],
+          "format": "date-time"
+        }
+      }
+    },
+    "platformEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["os", "builds"],
+      "properties": {
+        "os": {
+          "type": "string",
+          "enum": ["macos", "windows", "linux", "ios", "android"]
+        },
+        "builds": {
+          "type": "object",
+          "description": "Map of architecture -> build type map (e.g. arm64 -> installer/patch).",
+          "propertyNames": {
+            "enum": ["arm64", "x64", "x86"]
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/buildTypeMap"
+          }
+        }
+      }
+    },
+    "buildTypeMap": {
+      "type": "object",
+      "propertyNames": {
+        "enum": ["installer", "patch"]
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/buildDescriptor"
+      }
+    },
+    "buildDescriptor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "url",
+        "releaseDate",
+        "type",
+        "distribution"
+      ],
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "size": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "packageName": {
+          "type": ["string", "null"]
+        },
+        "releaseDate": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["installer", "patch"]
+        },
+        "distribution": {
+          "type": "string",
+          "enum": ["direct", "store"]
+        },
+        "version": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": ["string", "null"],
+          "pattern": "^$|^[a-fA-F0-9]{64}$"
+        },
+        "sha512": {
+          "type": ["string", "null"],
+          "pattern": "^$|^[a-fA-F0-9]{128}$"
+        },
+        "fallbackFrom": {
+          "type": "string"
+        },
+        "external": {
+          "type": "boolean"
+        },
+        "sources": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "$ref": "#/$defs/buildSource"
+          }
+        }
+      }
+    },
+    "buildSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["url", "releaseDate", "type", "distribution"],
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "size": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "packageName": {
+          "type": ["string", "null"]
+        },
+        "releaseDate": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["installer", "patch"]
+        },
+        "distribution": {
+          "type": "string",
+          "enum": ["direct", "store"]
+        },
+        "version": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": ["string", "null"],
+          "pattern": "^$|^[a-fA-F0-9]{64}$"
+        },
+        "sha512": {
+          "type": ["string", "null"],
+          "pattern": "^$|^[a-fA-F0-9]{128}$"
+        },
+        "fallbackFrom": {
+          "type": "string"
+        },
+        "external": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}
