@@ -2,8 +2,25 @@ name: Build and Release CLI
 
 on:
   push:
+    branches:
+      - main
     tags:
       - 'cli-v*'
+    paths-ignore:
+      - 'README.md'
+      - '**/*.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - '.gitignore'
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - 'README.md'
+      - '**/*.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - '.gitignore'
   workflow_dispatch:
 
 jobs:
@@ -76,7 +93,6 @@ jobs:
 
       - name: Apply CI version
         run: |
-          VERSION='${{ needs.prepare-version.outputs.version }}'
           node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));p.version=process.env.VERSION;fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\\n');"
           node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package-lock.json','utf8'));p.version=process.env.VERSION;if(p.packages&&p.packages[''])p.packages[''].version=process.env.VERSION;fs.writeFileSync('package-lock.json',JSON.stringify(p,null,2)+'\\n');"
         env:
@@ -108,6 +124,7 @@ jobs:
   release:
     name: Create Release
     needs: [prepare-version, build]
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/cli-v')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -130,7 +147,6 @@ jobs:
 
       - name: Apply CI version
         run: |
-          VERSION='${{ needs.prepare-version.outputs.version }}'
           node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));p.version=process.env.VERSION;fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\\n');"
           node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package-lock.json','utf8'));p.version=process.env.VERSION;if(p.packages&&p.packages[''])p.packages[''].version=process.env.VERSION;fs.writeFileSync('package-lock.json',JSON.stringify(p,null,2)+'\\n');"
         env:
@@ -163,7 +179,7 @@ jobs:
             echo "$CHANGELOG" >> $GITHUB_OUTPUT
             echo "EOF" >> $GITHUB_OUTPUT
           else
-            echo "changelog=Release ${{ steps.version.outputs.version }}" >> $GITHUB_OUTPUT
+            echo "changelog=Release ${{ needs.prepare-version.outputs.version }}" >> $GITHUB_OUTPUT
           fi
 
       - name: Create GitHub Release
