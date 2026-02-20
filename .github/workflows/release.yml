@@ -5,20 +5,40 @@ on:
     tags:
       - 'cli-v*'
   workflow_dispatch:
-    inputs:
-      version_bump:
-        description: 'Version bump type'
-        required: true
-        default: 'patch'
-        type: choice
-        options:
-          - patch
-          - minor
-          - major
 
 jobs:
+  prepare-version:
+    name: Prepare Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Compute version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            # Datetime-based semver: YYYY.M.D-tHHMMSS
+            Y=$(date -u +"%Y")
+            M=$(date -u +"%-m")
+            D=$(date -u +"%-d")
+            T=$(date -u +"%H%M%S")
+            VERSION="${Y}.${M}.${D}-t${T}"
+            TAG="cli-v${Y}.${M}.${D}-t${T}"
+          else
+            TAG=${GITHUB_REF#refs/tags/}
+            VERSION=${TAG#cli-v}
+          fi
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
   build:
     name: Build Executables
+    needs: prepare-version
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -54,6 +74,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Apply CI version
+        run: |
+          VERSION='${{ needs.prepare-version.outputs.version }}'
+          node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));p.version=process.env.VERSION;fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\\n');"
+          node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package-lock.json','utf8'));p.version=process.env.VERSION;if(p.packages&&p.packages[''])p.packages[''].version=process.env.VERSION;fs.writeFileSync('package-lock.json',JSON.stringify(p,null,2)+'\\n');"
+        env:
+          VERSION: ${{ needs.prepare-version.outputs.version }}
+
       - name: Build TypeScript
         run: npm run build
 
@@ -79,7 +107,7 @@ jobs:
 
   release:
     name: Create Release
-    needs: build
+    needs: [prepare-version, build]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -100,21 +128,13 @@ jobs:
         with:
           path: ./artifacts
 
-      - name: Get version
-        id: version
+      - name: Apply CI version
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            # Auto-increment version
-            npm version ${{ github.event.inputs.version_bump }} --no-git-tag-version
-            NEW_VERSION=$(node -p "require('./package.json').version")
-            echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
-            echo "tag=cli-v$NEW_VERSION" >> $GITHUB_OUTPUT
-          else
-            # Extract version from tag
-            TAG_VERSION=${GITHUB_REF#refs/tags/cli-v}
-            echo "version=$TAG_VERSION" >> $GITHUB_OUTPUT
-            echo "tag=cli-v$TAG_VERSION" >> $GITHUB_OUTPUT
-          fi
+          VERSION='${{ needs.prepare-version.outputs.version }}'
+          node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));p.version=process.env.VERSION;fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\\n');"
+          node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package-lock.json','utf8'));p.version=process.env.VERSION;if(p.packages&&p.packages[''])p.packages[''].version=process.env.VERSION;fs.writeFileSync('package-lock.json',JSON.stringify(p,null,2)+'\\n');"
+        env:
+          VERSION: ${{ needs.prepare-version.outputs.version }}
 
       - name: Commit version bump
         if: github.event_name == 'workflow_dispatch'
@@ -122,10 +142,10 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add package.json package-lock.json
-          git commit -m "chore(cli): bump version to ${{ steps.version.outputs.version }}"
-          git tag ${{ steps.version.outputs.tag }}
+          git commit -m "chore(cli): bump version to ${{ needs.prepare-version.outputs.version }}"
+          git tag ${{ needs.prepare-version.outputs.tag }}
           git push origin main
-          git push origin ${{ steps.version.outputs.tag }}
+          git push origin ${{ needs.prepare-version.outputs.tag }}
 
       - name: Prepare release assets
         run: |
@@ -149,10 +169,10 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ steps.version.outputs.tag }}
-          name: CLI v${{ steps.version.outputs.version }}
+          tag_name: ${{ needs.prepare-version.outputs.tag }}
+          name: CLI v${{ needs.prepare-version.outputs.version }}
           body: |
-            ## Publisher CLI v${{ steps.version.outputs.version }}
+            ## Publisher CLI v${{ needs.prepare-version.outputs.version }}
             
             ${{ steps.changelog.outputs.changelog }}
             
@@ -188,7 +208,7 @@ jobs:
       - name: Upload checksums
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ steps.version.outputs.tag }}
+          tag_name: ${{ needs.prepare-version.outputs.tag }}
           files: release/SHA256SUMS.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
