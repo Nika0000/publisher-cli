@@ -2,8 +2,8 @@
 import { Command } from 'commander';
 import { config } from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
-import { createVersion, listVersions, setVersionPolicy } from './commands/version.js';
-import { uploadBuild, listBuilds, createBuild } from './commands/build.js';
+import { createVersion, listVersions, setVersionPolicy, deleteVersion } from './commands/version.js';
+import { uploadBuild, listBuilds, createBuild, deleteBuild } from './commands/build.js';
 import { publishVersion, generateManifest } from './commands/publish.js';
 import { setConfig, getConfig, deleteConfig, resetConfig } from './commands/config.js';
 import { checkForUpdate } from './commands/update.js';
@@ -116,6 +116,14 @@ program
   .option('-o, --offset <offset>', 'Offset for pagination', '0')
   .action(listVersions);
 
+program
+  .command('version:delete <version>')
+  .description('Delete a version and all its builds')
+  .option('--channel <channel>', 'Release channel (stable, beta, alpha)', 'stable')
+  .option('-y, --yes', 'Skip confirmation prompt', false)
+  .option('--force', 'Delete even if published or referenced as fallback by other versions', false)
+  .action(deleteVersion);
+
 // Build commands
 program
   .command('build:upload <version> <file>')
@@ -143,6 +151,14 @@ program
   .description('List all builds for a version')
   .option('--channel <channel>', 'Release channel (stable, beta, alpha)', 'stable')
   .action(listBuilds);
+
+program
+  .command('build:delete <version> <os> <arch> <type>')
+  .description('Delete a specific build for a version')
+  .option('--channel <channel>', 'Release channel (stable, beta, alpha)', 'stable')
+  .option('--distribution <distribution>', 'Filter by distribution (direct, store)')
+  .option('-y, --yes', 'Skip confirmation prompt', false)
+  .action(deleteBuild);
 
 // Publish commands
 program

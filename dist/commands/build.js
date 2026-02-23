@@ -6,13 +6,16 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.uploadBuild = uploadBuild;
 exports.createBuild = createBuild;
 exports.listBuilds = listBuilds;
+exports.deleteBuild = deleteBuild;
 const ora_1 = __importDefault(require("ora"));
 const chalk_1 = __importDefault(require("chalk"));
+const prompts_1 = __importDefault(require("prompts"));
 const fs_1 = require("fs");
 const path_1 = require("path");
 const crypto_1 = require("crypto");
 const mime_types_1 = __importDefault(require("mime-types"));
 const index_js_1 = require("../index.js");
+const publish_js_1 = require("./publish.js");
 const versioning_js_1 = require("../utils/versioning.js");
 function parseFilename(filename) {
     const match = filename.match(/^spacerun-[0-9A-Za-z.+-]+-([A-Za-z0-9_]+)-([A-Za-z0-9_]+)\.(tar\.gz|zip|dmg|msi|AppImage|deb|rpm|apk)$/);
@@ -253,6 +256,121 @@ async function listBuilds(version, options) {
     }
     catch (error) {
         spinner.fail(chalk_1.default.red(`Failed to list builds: ${error.message}`));
+        process.exit(1);
+    }
+}
+async function deleteBuild(version, os, arch, type, options) {
+    const channel = options.channel || 'stable';
+    const spinner = (0, ora_1.default)(`Looking up build ${os}/${arch}/${type} for ${version} (${channel})...`).start();
+    try {
+        // Resolve version record
+        const { data: versionData, error: versionError } = await index_js_1.supabase
+            .schema('application')
+            .from('versions')
+            .select('id, version_name, release_channel, is_published')
+            .eq('version_name', version)
+            .eq('release_channel', channel)
+            .single();
+        if (versionError || !versionData) {
+            throw new Error(`Version ${version} (${channel}) not found`);
+        }
+        // Find the matching build(s)
+        let query = index_js_1.supabase
+            .schema('application')
+            .from('builds')
+            .select('*')
+            .eq('version_id', versionData.id)
+            .eq('os', os)
+            .eq('arch', arch)
+            .eq('type', type);
+        if (options.distribution) {
+            query = query.eq('distribution', options.distribution);
+        }
+        const { data: builds, error: buildsError } = await query;
+        if (buildsError)
+            throw buildsError;
+        if (!builds || builds.length === 0) {
+            spinner.fail(chalk_1.default.red(`No matching build found for ${os}/${arch}/${type} in ${version} (${channel})`));
+            process.exit(1);
+        }
+        spinner.stop();
+        // Conflict check: are any of these builds referenced as fallbacks by other versions?
+        const { data: dependentBuilds, error: depError } = await index_js_1.supabase
+            .schema('application')
+            .from('builds')
+            .select('version_id, os, arch, type, distribution, platform_metadata')
+            .filter('platform_metadata->>fallback_from', 'eq', version);
+        if (depError)
+            throw depError;
+        // Filter only those that match the specific os/arch/type being deleted
+        const conflicts = (dependentBuilds || []).filter((b) => b.os === os && b.arch === arch && b.type === type);
+        if (conflicts.length > 0) {
+            console.log(chalk_1.default.red(`\n✗ Conflict: This build is referenced as a fallback by ${conflicts.length} build(s) in other versions:`));
+            conflicts.forEach((b) => {
+                console.log(chalk_1.default.gray(`  - version_id=${b.version_id} | ${b.os}/${b.arch}/${b.type}/${b.distribution || 'direct'}`));
+            });
+            console.log(chalk_1.default.yellow('\n  Delete or reassign those fallback builds before deleting this build.'));
+            process.exit(1);
+        }
+        if (versionData.is_published) {
+            console.log(chalk_1.default.yellow(`\n⚠ Warning: Version ${version} is published. Deleting a build may break active manifests.`));
+        }
+        // Show summary
+        console.log(chalk_1.default.bold(`\nAbout to delete ${builds.length} build(s):`));
+        builds.forEach((b) => {
+            const external = b.platform_metadata?.external ? chalk_1.default.blue(' [EXTERNAL]') : '';
+            console.log(chalk_1.default.gray(`  - ${b.os}/${b.arch}/${b.type} (${b.distribution || 'direct'})${external} — ${b.package_name}`));
+        });
+        if (!options.yes) {
+            const response = await (0, prompts_1.default)({
+                type: 'confirm',
+                name: 'confirm',
+                initial: false,
+                message: `Delete ${builds.length} build(s) from version ${version}?`,
+            });
+            if (!response.confirm) {
+                console.log(chalk_1.default.yellow('Deletion canceled.'));
+                return;
+            }
+        }
+        const deleteSpinner = (0, ora_1.default)(`Deleting ${builds.length} build(s)...`).start();
+        for (const build of builds) {
+            // Remove from CDN storage unless the build is external
+            if (!build.platform_metadata?.external && build.url) {
+                try {
+                    const archiveMatch = build.url.match(/\/archive\/(.+)$/);
+                    if (archiveMatch) {
+                        await index_js_1.supabase.storage.from('archive').remove([archiveMatch[1]]);
+                    }
+                }
+                catch {
+                    // Non-fatal: continue even if storage delete fails
+                }
+            }
+            const { error: deleteError } = await index_js_1.supabase
+                .schema('application')
+                .from('builds')
+                .delete()
+                .eq('id', build.id);
+            if (deleteError)
+                throw deleteError;
+        }
+        deleteSpinner.succeed(chalk_1.default.green(`✓ Deleted ${builds.length} build(s) from ${version} (${channel})`));
+        if (versionData.is_published) {
+            const regenSpinner = (0, ora_1.default)('Regenerating manifests...').start();
+            try {
+                await (0, publish_js_1.generateManifest)(version, { showSpinner: false, channel });
+                await (0, publish_js_1.generateLatestManifest)(channel);
+                regenSpinner.succeed(chalk_1.default.green(`✓ Manifests regenerated for ${channel} channel`));
+            }
+            catch (regenError) {
+                regenSpinner.warn(chalk_1.default.yellow(`⚠ Build deleted but manifest regeneration failed: ${regenError.message}`));
+                console.log(chalk_1.default.gray('  Run: publisher manifest:generate ' + version + ' --channel ' + channel));
+            }
+        }
+    }
+    catch (error) {
+        spinner.fail(chalk_1.default.red(`Failed to delete build: ${error.message}`));
         process.exit(1);
     }
 }

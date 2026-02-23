@@ -1,7 +1,9 @@
 import ora from 'ora';
 import chalk from 'chalk';
 import semver from 'semver';
+import prompts from 'prompts';
 import { supabase } from '../index.js';
+import { generateLatestManifest } from './publish.js';
 import {
   SUPPORTED_CHANNELS,
   buildVersionMetadataWithPolicy,
@@ -269,4 +271,174 @@ function parseRolloutPercentage(value?: string): number | null {
   }
 
   return parsed;
+}
+
+export async function deleteVersion(
+  version: string,
+  options: { channel?: string; yes?: boolean; force?: boolean }
+) {
+  const channel = options.channel || 'stable';
+  const spinner = ora(`Looking up version ${version} (${channel})...`).start();
+
+  try {
+    // Resolve version record
+    const { data: versionData, error: versionError } = await supabase
+      .schema('application')
+      .from('versions')
+      .select('id, version_name, release_channel, is_published, storage_key_prefix')
+      .eq('version_name', version)
+      .eq('release_channel', channel)
+      .single();
+
+    if (versionError || !versionData) {
+      throw new Error(`Version ${version} (${channel}) not found`);
+    }
+
+    // Get all builds for this version
+    const { data: builds, error: buildsError } = await supabase
+      .schema('application')
+      .from('builds')
+      .select('*')
+      .eq('version_id', versionData.id);
+
+    if (buildsError) throw buildsError;
+
+    spinner.stop();
+
+    // Conflict check: are any builds in other versions referencing this version as a fallback?
+    const { data: dependentBuilds, error: depError } = await supabase
+      .schema('application')
+      .from('builds')
+      .select('version_id, os, arch, type, distribution, platform_metadata')
+      .filter('platform_metadata->>fallback_from', 'eq', version);
+
+    if (depError) throw depError;
+
+    if (dependentBuilds && dependentBuilds.length > 0) {
+      console.log(chalk.red(`\n✗ Conflict: ${dependentBuilds.length} build(s) in other versions reference ${version} as a fallback:`));
+      dependentBuilds.forEach((b: any) => {
+        console.log(chalk.gray(`  - version_id=${b.version_id} | ${b.os}/${b.arch}/${b.type}/${b.distribution || 'direct'}`));
+      });
+      console.log(chalk.yellow('\n  Delete or reassign those fallback builds before deleting this version.'));
+      if (!options.force) {
+        process.exit(1);
+      }
+      console.log(chalk.yellow('  --force specified, proceeding anyway...'));
+    }
+
+    // Block deletion of published versions unless --force
+    if (versionData.is_published && !options.force) {
+      console.log(chalk.red(`\n✗ Version ${version} is currently published.`));
+      console.log(chalk.gray('  Unpublish it first, or use --force to delete a published version.'));
+      process.exit(1);
+    }
+
+    if (versionData.is_published) {
+      console.log(chalk.yellow(`\n⚠ Warning: Version ${version} is published. Deleting it will break active manifests.`));
+    }
+
+    // Show summary
+    console.log(chalk.bold(`\nAbout to delete:`));
+    console.log(chalk.gray(`  Version : ${version} (${channel})`));
+    console.log(chalk.gray(`  Builds  : ${builds?.length || 0}`));
+    console.log(chalk.gray(`  Published: ${versionData.is_published ? chalk.red('yes') : 'no'}`));
+
+    if (!options.yes) {
+      const response = await prompts({
+        type: 'confirm',
+        name: 'confirm',
+        initial: false,
+        message: `Delete version ${version} and all ${builds?.length || 0} associated build(s)?`,
+      });
+
+      if (!response.confirm) {
+        console.log(chalk.yellow('Deletion canceled.'));
+        return;
+      }
+    }
+
+    const deleteSpinner = ora('Deleting version and builds...').start();
+
+    // Delete all builds from database first
+    if (builds && builds.length > 0) {
+      const { error: deleteBuildsError } = await supabase
+        .schema('application')
+        .from('builds')
+        .delete()
+        .eq('version_id', versionData.id);
+
+      if (deleteBuildsError) throw deleteBuildsError;
+    }
+
+    // Delete the version itself
+    const { error: deleteVersionError } = await supabase
+      .schema('application')
+      .from('versions')
+      .delete()
+      .eq('id', versionData.id);
+
+    if (deleteVersionError) throw deleteVersionError;
+
+    // Remove entire storage folder (builds + manifest.json + any leftover files)
+    const storagePrefix = versionData.storage_key_prefix || `releases/${channel}/${version}`;
+    deleteSpinner.text = `Removing storage folder ${storagePrefix}...`;
+    try {
+      await removeStorageFolder('archive', storagePrefix);
+    } catch (storageError: any) {
+      // Non-fatal — DB records are already cleaned up
+      console.log(chalk.yellow(`\n  ⚠ Storage cleanup failed: ${storageError.message}`));
+    }
+
+    deleteSpinner.succeed(
+      chalk.green(`✓ Deleted version ${version} (${channel}), ${builds?.length || 0} build(s), and storage folder`)
+    );
+
+    // Regenerate channel latest manifest if this was a published version
+    if (versionData.is_published) {
+      const manifestSpinner = ora(`Regenerating channel manifest for ${channel}...`).start();
+      try {
+        await generateLatestManifest(channel);
+        manifestSpinner.succeed(chalk.green(`✓ Channel manifest regenerated for ${channel}`));
+      } catch (manifestError: any) {
+        manifestSpinner.warn(chalk.yellow(`⚠ Channel manifest regeneration failed: ${manifestError.message}`));
+      }
+    }
+  } catch (error: any) {
+    spinner.fail(chalk.red(`Failed to delete version: ${error.message}`));
+    process.exit(1);
+  }
+}
+
+/**
+ * Recursively list and remove all files under a storage folder prefix.
+ */
+async function removeStorageFolder(bucket: string, prefix: string): Promise<void> {
+  const { data: items, error } = await supabase.storage
+    .from(bucket)
+    .list(prefix, { limit: 1000 });
+
+  if (error) throw error;
+  if (!items || items.length === 0) return;
+
+  const filePaths: string[] = [];
+  const subfolders: string[] = [];
+
+  for (const item of items) {
+    if (item.id) {
+      // It's a file
+      filePaths.push(`${prefix}/${item.name}`);
+    } else {
+      // It's a virtual folder
+      subfolders.push(`${prefix}/${item.name}`);
+    }
+  }
+
+  if (filePaths.length > 0) {
+    const { error: removeError } = await supabase.storage.from(bucket).remove(filePaths);
+    if (removeError) throw removeError;
+  }
+
+  for (const subfolder of subfolders) {
+    await removeStorageFolder(bucket, subfolder);
+  }
 }

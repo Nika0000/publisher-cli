@@ -17,5 +17,10 @@ export declare function createBuild(version: string, os: string, arch: string, t
 export declare function listBuilds(version: string, options: {
     channel?: string;
 }): Promise<void>;
+export declare function deleteBuild(version: string, os: string, arch: string, type: string, options: {
+    channel?: string;
+    distribution?: string;
+    yes?: boolean;
+}): Promise<void>;
 export {};
 //# sourceMappingURL=build.d.ts.map

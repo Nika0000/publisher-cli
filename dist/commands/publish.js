@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.publishVersion = publishVersion;
 exports.generateManifest = generateManifest;
+exports.generateLatestManifest = generateLatestManifest;
 const ora_1 = __importDefault(require("ora"));
 const chalk_1 = __importDefault(require("chalk"));
 const prompts_1 = __importDefault(require("prompts"));
@@ -212,10 +213,31 @@ async function generateManifest(version, options = {}) {
         });
         if (uploadError)
             throw uploadError;
+        const normalizedCdnUrl = index_js_1.cdnUrl.endsWith('/') ? index_js_1.cdnUrl : `${index_js_1.cdnUrl}/`;
         if (spinner) {
             spinner.succeed(chalk_1.default.green(`✓ Manifest generated for ${version}`));
-            const normalizedCdnUrl = index_js_1.cdnUrl.endsWith('/') ? index_js_1.cdnUrl : `${index_js_1.cdnUrl}/`;
             console.log(chalk_1.default.gray(`  URL: ${normalizedCdnUrl}archive/${manifestPath}`));
+        }
+        // Determine if this version affects the channel latest manifest.
+        // It does when the version is published and is the latest published version
+        // in this channel (by semantic version order).
+        const { data: publishedVersions } = await appDb()
+            .from('versions')
+            .select('version_name')
+            .eq('release_channel', channel)
+            .eq('is_published', true)
+            .order('created_at', { ascending: false });
+        if (publishedVersions && publishedVersions.length > 0) {
+            const sorted = (0, versioning_js_1.sortVersionsDesc)(publishedVersions, (v) => v.version_name);
+            const latestVersionName = sorted[0]?.version_name;
+            if (latestVersionName === version) {
+                if (spinner)
+                    spinner.text = `Updating channel latest manifest for ${channel}...`;
+                await generateLatestManifest(channel);
+                if (showSpinner) {
+                    console.log(chalk_1.default.gray(`  Channel URL: ${normalizedCdnUrl}archive/channels/${channel}/manifest.json`));
+                }
+            }
         }
     }
     catch (error) {

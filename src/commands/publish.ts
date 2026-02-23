@@ -242,10 +242,34 @@ export async function generateManifest(version: string, options: { showSpinner?:
 
     if (uploadError) throw uploadError;
 
+    const normalizedCdnUrl = cdnUrl.endsWith('/') ? cdnUrl : `${cdnUrl}/`;
+
     if (spinner) {
       spinner.succeed(chalk.green(`✓ Manifest generated for ${version}`));
-      const normalizedCdnUrl = cdnUrl.endsWith('/') ? cdnUrl : `${cdnUrl}/`;
       console.log(chalk.gray(`  URL: ${normalizedCdnUrl}archive/${manifestPath}`));
+    }
+
+    // Determine if this version affects the channel latest manifest.
+    // It does when the version is published and is the latest published version
+    // in this channel (by semantic version order).
+    const { data: publishedVersions } = await appDb()
+      .from('versions')
+      .select('version_name')
+      .eq('release_channel', channel)
+      .eq('is_published', true)
+      .order('created_at', { ascending: false });
+
+    if (publishedVersions && publishedVersions.length > 0) {
+      const sorted = sortVersionsDesc(publishedVersions, (v: any) => v.version_name);
+      const latestVersionName = sorted[0]?.version_name;
+
+      if (latestVersionName === version) {
+        if (spinner) spinner.text = `Updating channel latest manifest for ${channel}...`;
+        await generateLatestManifest(channel);
+        if (showSpinner) {
+          console.log(chalk.gray(`  Channel URL: ${normalizedCdnUrl}archive/channels/${channel}/manifest.json`));
+        }
+      }
     }
   } catch (error: any) {
     if (spinner) {
@@ -301,7 +325,7 @@ async function buildVersionManifest(version: string, channel: string) {
   };
 }
 
-async function generateLatestManifest(channel: string) {
+export async function generateLatestManifest(channel: string) {
   try {
     // Get all published versions
     const { data: versions, error } = await appDb()

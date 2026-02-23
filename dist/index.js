@@ -101,6 +101,13 @@ program
     .option('-l, --limit <limit>', 'Number of versions to show', '20')
     .option('-o, --offset <offset>', 'Offset for pagination', '0')
     .action(version_js_1.listVersions);
+program
+    .command('version:delete <version>')
+    .description('Delete a version and all its builds')
+    .option('--channel <channel>', 'Release channel (stable, beta, alpha)', 'stable')
+    .option('-y, --yes', 'Skip confirmation prompt', false)
+    .option('--force', 'Delete even if published or referenced as fallback by other versions', false)
+    .action(version_js_1.deleteVersion);
 // Build commands
 program
     .command('build:upload <version> <file>')
@@ -126,6 +133,13 @@ program
     .description('List all builds for a version')
     .option('--channel <channel>', 'Release channel (stable, beta, alpha)', 'stable')
     .action(build_js_1.listBuilds);
+program
+    .command('build:delete <version> <os> <arch> <type>')
+    .description('Delete a specific build for a version')
+    .option('--channel <channel>', 'Release channel (stable, beta, alpha)', 'stable')
+    .option('--distribution <distribution>', 'Filter by distribution (direct, store)')
+    .option('-y, --yes', 'Skip confirmation prompt', false)
+    .action(build_js_1.deleteBuild);
 // Publish commands
 program
     .command('publish <version>')
