@@ -11,6 +11,7 @@ const publish_js_1 = require("./commands/publish.js");
 const config_js_1 = require("./commands/config.js");
 const update_js_1 = require("./commands/update.js");
 const config_js_2 = require("./utils/config.js");
+const package_json_1 = require("../package.json");
 // Load environment variables from .env file (if exists)
 (0, dotenv_1.config)();
 // Load from config file if env vars not set
@@ -42,6 +43,9 @@ if (!isConfigCommand && (!SUPABASE_URL || !SUPABASE_ANON_KEY || !APP_PUBLISHER_K
 exports.supabase = isConfigCommand
     ? null
     : (0, supabase_js_1.createClient)(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        db: {
+            schema: 'application',
+        },
         global: {
             headers: {
                 Authorization: `Bearer ${APP_PUBLISHER_KEY}`,
@@ -53,7 +57,7 @@ const program = new commander_1.Command();
 program
     .name('publisher')
     .description('Publisher CLI for app version and build management')
-    .version('1.0.0');
+    .version(package_json_1.version);
 // Config commands
 program
     .command('config:set <key> <value>')

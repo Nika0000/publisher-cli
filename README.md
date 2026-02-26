@@ -35,6 +35,19 @@ Optional:
 
 - `CDN_URL` (auto-derived from `SUPABASE_URL` if omitted)
 
+### Generate APP_PUBLISHER_KEY
+
+```js
+const jwt = require('jsonwebtoken');
+const JWT_SECRET = 'your-supabase-jwt-secret';
+
+const token = jwt.sign({ role: 'app_publisher' }, JWT_SECRET, {
+  expiresIn: '365d'
+});
+
+console.log(token);
+```
+
 ## Typical flow
 
 Create version:

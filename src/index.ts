@@ -8,6 +8,7 @@ import { publishVersion, generateManifest } from './commands/publish.js';
 import { setConfig, getConfig, deleteConfig, resetConfig } from './commands/config.js';
 import { checkForUpdate } from './commands/update.js';
 import { loadConfig } from './utils/config.js';
+import { version as pkgVersion } from '../package.json';
 
 // Load environment variables from .env file (if exists)
 config();
@@ -46,6 +47,9 @@ export const supabase = isConfigCommand
   ? null as any 
   : createClient(SUPABASE_URL!, SUPABASE_ANON_KEY!, 
      {
+      db: {
+        schema: 'application',
+      },
       global: {
         headers: {
           Authorization: `Bearer ${APP_PUBLISHER_KEY}`,
@@ -60,7 +64,7 @@ const program = new Command();
 program
   .name('publisher')
   .description('Publisher CLI for app version and build management')
-  .version('1.0.0');
+  .version(pkgVersion);
 
 // Config commands
 program
