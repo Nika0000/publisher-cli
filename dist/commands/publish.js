@@ -82,6 +82,7 @@ async function publishVersion(version, options) {
             os,
             arch,
             type,
+            variant,
             distribution,
             package_name,
             url,
@@ -132,6 +133,7 @@ async function publishVersion(version, options) {
                         os: response.build.os,
                         arch: response.build.arch,
                         type: response.build.type,
+                        variant: response.build.variant || 'default',
                         distribution: response.build.distribution || 'direct',
                         package_name: response.build.package_name,
                         url: response.build.url,
@@ -325,7 +327,7 @@ async function generateLatestManifest(channel) {
         for (const version of orderedVersions) {
             for (const build of version.platforms || []) {
                 const distribution = resolveDistribution(build);
-                const comboKey = `${build.os}::${build.arch}::${build.type}::${distribution}`;
+                const comboKey = `${build.os}::${build.arch}::${build.variant || 'default'}::${build.type}::${distribution}`;
                 if (!selectedBuildBySource.has(comboKey)) {
                     selectedBuildBySource.set(comboKey, {
                         ...build,
@@ -375,12 +377,16 @@ function buildPlatformsArray(builds) {
         if (!platform.builds[build.arch]) {
             platform.builds[build.arch] = {};
         }
-        if (!platform.builds[build.arch][build.type]) {
-            platform.builds[build.arch][build.type] = {
+        const variant = build.variant || 'default';
+        if (!platform.builds[build.arch][variant]) {
+            platform.builds[build.arch][variant] = {};
+        }
+        if (!platform.builds[build.arch][variant][build.type]) {
+            platform.builds[build.arch][variant][build.type] = {
                 sources: []
             };
         }
-        const typeEntry = platform.builds[build.arch][build.type];
+        const typeEntry = platform.builds[build.arch][variant][build.type];
         const distribution = resolveDistribution(build);
         const source = {
             url: build.url,
@@ -406,22 +412,35 @@ function buildPlatformsArray(builds) {
     // Choose primary source per build type and keep alternatives
     for (const platform of platformMap.values()) {
         for (const arch of Object.keys(platform.builds)) {
-            for (const type of Object.keys(platform.builds[arch])) {
-                const typeEntry = platform.builds[arch][type];
-                const sortedSources = [...typeEntry.sources].sort((a, b) => {
-                    const byDistribution = rankDistribution(a.distribution) - rankDistribution(b.distribution);
-                    if (byDistribution !== 0) {
-                        return byDistribution;
-                    }
-                    const aTs = new Date(a.releaseDate || 0).getTime();
-                    const bTs = new Date(b.releaseDate || 0).getTime();
-                    return bTs - aTs;
-                });
-                const primary = sortedSources[0];
-                platform.builds[arch][type] = {
-                    ...primary,
-                    ...(sortedSources.length > 1 && { sources: sortedSources })
-                };
+            for (const variant of Object.keys(platform.builds[arch])) {
+                for (const type of Object.keys(platform.builds[arch][variant])) {
+                    const typeEntry = platform.builds[arch][variant][type];
+                    const sortedSources = [...typeEntry.sources].sort((a, b) => {
+                        const byDistribution = rankDistribution(a.distribution) - rankDistribution(b.distribution);
+                        if (byDistribution !== 0) {
+                            return byDistribution;
+                        }
+                        const aTs = new Date(a.releaseDate || 0).getTime();
+                        const bTs = new Date(b.releaseDate || 0).getTime();
+                        return bTs - aTs;
+                    });
+                    const primary = sortedSources[0];
+                    platform.builds[arch][variant][type] = {
+                        ...primary,
+                        ...(sortedSources.length > 1 && { sources: sortedSources })
+                    };
+                }
+            }
+        }
+    }
+    // Collapse variant tier: if the only variant for an arch is "default",
+    // hoist its type map directly under the arch key.
+    // Multiple variants (or any non-default variant) keep the full structure.
+    for (const platform of platformMap.values()) {
+        for (const arch of Object.keys(platform.builds)) {
+            const variantKeys = Object.keys(platform.builds[arch]);
+            if (variantKeys.length === 1 && variantKeys[0] === 'default') {
+                platform.builds[arch] = platform.builds[arch]['default'];
             }
         }
     }
@@ -442,6 +461,7 @@ function mapBuildRowToPlatformPayload(build) {
         os: build.os,
         arch: build.arch,
         type: build.type,
+        variant: build.variant || 'default',
         distribution: build.distribution,
         packageName: build.package_name,
         url: build.url,

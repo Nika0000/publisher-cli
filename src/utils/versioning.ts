@@ -5,6 +5,8 @@ export const SUPPORTED_ARCH = ['arm64', 'armv7', 'x64', 'x86'] as const;
 export const SUPPORTED_BUILD_TYPES = ['patch', 'installer'] as const;
 export const SUPPORTED_CHANNELS = ['stable', 'beta', 'alpha'] as const;
 export const SUPPORTED_DISTRIBUTIONS = ['direct', 'store'] as const;
+export const DEFAULT_VARIANT = 'default';
+export const VARIANT_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
 export type SupportedOs = typeof SUPPORTED_OS[number];
 export type SupportedArch = typeof SUPPORTED_ARCH[number];
@@ -48,6 +50,10 @@ export function isSupportedBuildType(value: string): value is SupportedBuildType
 
 export function isSupportedDistribution(value: string): value is SupportedDistribution {
   return SUPPORTED_DISTRIBUTIONS.includes(value as SupportedDistribution);
+}
+
+export function isValidVariant(value: string): boolean {
+  return VARIANT_PATTERN.test(value) && value.length > 0 && value.length <= 50;
 }
 
 export function isSupportedChannel(value: string): value is SupportedChannel {

@@ -3,11 +3,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.SUPPORTED_DISTRIBUTIONS = exports.SUPPORTED_CHANNELS = exports.SUPPORTED_BUILD_TYPES = exports.SUPPORTED_ARCH = exports.SUPPORTED_OS = void 0;
+exports.VARIANT_PATTERN = exports.DEFAULT_VARIANT = exports.SUPPORTED_DISTRIBUTIONS = exports.SUPPORTED_CHANNELS = exports.SUPPORTED_BUILD_TYPES = exports.SUPPORTED_ARCH = exports.SUPPORTED_OS = void 0;
 exports.isSupportedOs = isSupportedOs;
 exports.isSupportedArch = isSupportedArch;
 exports.isSupportedBuildType = isSupportedBuildType;
 exports.isSupportedDistribution = isSupportedDistribution;
+exports.isValidVariant = isValidVariant;
 exports.isSupportedChannel = isSupportedChannel;
 exports.assertValidPlatform = assertValidPlatform;
 exports.parseVersionMetadata = parseVersionMetadata;
@@ -24,6 +25,8 @@ exports.SUPPORTED_ARCH = ['arm64', 'armv7', 'x64', 'x86'];
 exports.SUPPORTED_BUILD_TYPES = ['patch', 'installer'];
 exports.SUPPORTED_CHANNELS = ['stable', 'beta', 'alpha'];
 exports.SUPPORTED_DISTRIBUTIONS = ['direct', 'store'];
+exports.DEFAULT_VARIANT = 'default';
+exports.VARIANT_PATTERN = /^[a-zA-Z0-9_-]+$/;
 function isSupportedOs(value) {
     return exports.SUPPORTED_OS.includes(value);
 }
@@ -35,6 +38,9 @@ function isSupportedBuildType(value) {
 }
 function isSupportedDistribution(value) {
     return exports.SUPPORTED_DISTRIBUTIONS.includes(value);
+}
+function isValidVariant(value) {
+    return exports.VARIANT_PATTERN.test(value) && value.length > 0 && value.length <= 50;
 }
 function isSupportedChannel(value) {
     return exports.SUPPORTED_CHANNELS.includes(value);

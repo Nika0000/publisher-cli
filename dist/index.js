@@ -114,6 +114,7 @@ program
     .description('Upload a build file for a version')
     .option('--channel <channel>', 'Release channel (stable, beta, alpha)', 'stable')
     .option('--distribution <distribution>', 'Build distribution source (direct, store)', 'direct')
+    .option('--variant <variant>', 'Build variant label, e.g. opengl, d3d11 (default: "default")', 'default')
     .option('-o, --os <os>', 'Operating system (macos, windows, linux, ios, android)')
     .option('-a, --arch <arch>', 'Architecture (arm64, x64, x86)')
     .option('-t, --type <type>', 'Build type (patch, installer)')
@@ -123,6 +124,7 @@ program
     .description('Create a build record with external URL (e.g., App Store, TestFlight)')
     .option('--channel <channel>', 'Release channel (stable, beta, alpha)', 'stable')
     .option('--distribution <distribution>', 'Build distribution source (direct, store)', 'store')
+    .option('--variant <variant>', 'Build variant label, e.g. opengl, d3d11 (default: "default")', 'default')
     .option('-s, --size <size>', 'File size in bytes', parseInt)
     .option('--sha256 <hash>', 'SHA256 checksum')
     .option('--sha512 <hash>', 'SHA512 checksum')
@@ -138,6 +140,7 @@ program
     .description('Delete a specific build for a version')
     .option('--channel <channel>', 'Release channel (stable, beta, alpha)', 'stable')
     .option('--distribution <distribution>', 'Filter by distribution (direct, store)')
+    .option('--variant <variant>', 'Filter by variant label (default: all variants)')
     .option('-y, --yes', 'Skip confirmation prompt', false)
     .action(build_js_1.deleteBuild);
 // Publish commands

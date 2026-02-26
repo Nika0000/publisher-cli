@@ -65,8 +65,12 @@ async function uploadBuild(version, filePath, options) {
     try {
         const channel = options.channel || 'stable';
         const distribution = options.distribution || 'direct';
+        const variant = options.variant || versioning_js_1.DEFAULT_VARIANT;
         if (!(0, versioning_js_1.isSupportedDistribution)(distribution)) {
             throw new Error(`Invalid distribution: ${distribution}. Supported: ${versioning_js_1.SUPPORTED_DISTRIBUTIONS.join(', ')}`);
+        }
+        if (!(0, versioning_js_1.isValidVariant)(variant)) {
+            throw new Error(`Invalid variant: "${variant}". Must be alphanumeric, hyphens and underscores only (max 50 chars).`);
         }
         // Get version ID
         const { data: versionData, error: versionError } = await index_js_1.supabase
@@ -121,13 +125,14 @@ async function uploadBuild(version, filePath, options) {
             arch,
             type,
             distribution,
+            variant,
             package_name: filename,
             url: buildUrl,
             size: fileSize,
             sha256_checksum: sha256,
             sha512_checksum: sha512
         }, {
-            onConflict: 'version_id,os,arch,type,distribution'
+            onConflict: 'version_id,os,arch,type,distribution,variant'
         });
         if (dbError)
             throw dbError;
@@ -135,7 +140,7 @@ async function uploadBuild(version, filePath, options) {
         console.log(chalk_1.default.gray(`  Version: ${version}`));
         console.log(chalk_1.default.gray(`  Channel: ${versionData.release_channel}`));
         console.log(chalk_1.default.gray(`  Platform: ${os}/${arch}`));
-        console.log(chalk_1.default.gray(`  Type: ${type} (${distribution})`));
+        console.log(chalk_1.default.gray(`  Type: ${type} (${distribution}) [variant: ${variant}]`));
         console.log(chalk_1.default.gray(`  Size: ${(fileSize / 1024 / 1024).toFixed(2)} MB`));
         console.log(chalk_1.default.gray(`  SHA256: ${sha256}`));
         console.log(chalk_1.default.gray(`  SHA512: ${sha512.substring(0, 32)}...`));
@@ -151,8 +156,12 @@ async function createBuild(version, os, arch, type, url, options) {
     try {
         const channel = options.channel || 'stable';
         const distribution = options.distribution || 'store';
+        const variant = options.variant || versioning_js_1.DEFAULT_VARIANT;
         if (!(0, versioning_js_1.isSupportedDistribution)(distribution)) {
             throw new Error(`Invalid distribution: ${distribution}. Supported: ${versioning_js_1.SUPPORTED_DISTRIBUTIONS.join(', ')}`);
+        }
+        if (!(0, versioning_js_1.isValidVariant)(variant)) {
+            throw new Error(`Invalid variant: "${variant}". Must be alphanumeric, hyphens and underscores only (max 50 chars).`);
         }
         // Get version ID
         const { data: versionData, error: versionError } = await index_js_1.supabase
@@ -183,6 +192,7 @@ async function createBuild(version, os, arch, type, url, options) {
             arch,
             type,
             distribution,
+            variant,
             package_name: packageName,
             url,
             size: options.size || 0,
@@ -193,7 +203,7 @@ async function createBuild(version, os, arch, type, url, options) {
                 source: 'manual'
             }
         }, {
-            onConflict: 'version_id,os,arch,type,distribution'
+            onConflict: 'version_id,os,arch,type,distribution,variant'
         });
         if (dbError)
             throw dbError;
@@ -201,7 +211,7 @@ async function createBuild(version, os, arch, type, url, options) {
         console.log(chalk_1.default.gray(`  Version: ${version}`));
         console.log(chalk_1.default.gray(`  Channel: ${versionData.release_channel}`));
         console.log(chalk_1.default.gray(`  Platform: ${os}/${arch}`));
-        console.log(chalk_1.default.gray(`  Type: ${type} (${distribution})`));
+        console.log(chalk_1.default.gray(`  Type: ${type} (${distribution}) [variant: ${variant}]`));
         console.log(chalk_1.default.gray(`  Package: ${packageName}`));
         console.log(chalk_1.default.gray(`  URL: ${url}`));
         if (options.size) {
@@ -248,7 +258,8 @@ async function listBuilds(version, options) {
         data.forEach((build) => {
             const external = build.platform_metadata?.external ? chalk_1.default.blue(' [EXTERNAL]') : '';
             const sizeMB = build.size ? (build.size / 1024 / 1024).toFixed(2) : '0.00';
-            console.log(`  ${chalk_1.default.bold(`${build.os}/${build.arch}`)} (${build.type}/${build.distribution || 'direct'})${external}`);
+            const variantLabel = build.variant && build.variant !== 'default' ? chalk_1.default.cyan(` [${build.variant}]`) : '';
+            console.log(`  ${chalk_1.default.bold(`${build.os}/${build.arch}`)} (${build.type}/${build.distribution || 'direct'})${variantLabel}${external}`);
             console.log(chalk_1.default.gray(`    Package: ${build.package_name}`));
             console.log(chalk_1.default.gray(`    Size: ${sizeMB} MB`));
             console.log(chalk_1.default.gray(`    URL: ${build.url}`));
@@ -285,6 +296,9 @@ async function deleteBuild(version, os, arch, type, options) {
             .eq('type', type);
         if (options.distribution) {
             query = query.eq('distribution', options.distribution);
+        }
+        if (options.variant) {
+            query = query.eq('variant', options.variant);
         }
         const { data: builds, error: buildsError } = await query;
         if (buildsError)

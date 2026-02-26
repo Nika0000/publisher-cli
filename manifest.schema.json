@@ -94,14 +94,30 @@
         },
         "builds": {
           "type": "object",
-          "description": "Map of architecture -> build type map (e.g. arm64 -> installer/patch).",
+          "description": "Map of architecture -> either a buildTypeMap (single default variant, collapsed) or a variantMap (multiple variants or named variants like opengl/d3d11).",
           "propertyNames": {
-            "enum": ["arm64", "x64", "x86"]
+            "enum": ["arm64", "armv7", "x64", "x86"]
           },
           "additionalProperties": {
-            "$ref": "#/$defs/buildTypeMap"
+            "oneOf": [
+              { "$ref": "#/$defs/buildTypeMap" },
+              { "$ref": "#/$defs/variantMap" }
+            ]
           }
         }
+      }
+    },
+    "variantMap": {
+      "type": "object",
+      "description": "Map of variant label -> build type map. Use 'default' for the standard build. Additional labels (e.g. 'opengl', 'd3d11') represent alternate renderer or feature variants.",
+      "minProperties": 1,
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^[a-zA-Z0-9_-]+$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/buildTypeMap"
       }
     },
     "buildTypeMap": {

@@ -7,7 +7,7 @@ import { createHash } from 'crypto';
 import mime from 'mime-types';
 import { supabase, cdnUrl } from '../index.js';
 import { generateManifest, generateLatestManifest } from './publish.js';
-import { assertValidPlatform, isSupportedDistribution, SUPPORTED_DISTRIBUTIONS } from '../utils/versioning.js';
+import { assertValidPlatform, isSupportedDistribution, isValidVariant, SUPPORTED_DISTRIBUTIONS, DEFAULT_VARIANT } from '../utils/versioning.js';
 
 interface UploadBuildOptions {
   os?: string;
@@ -15,6 +15,7 @@ interface UploadBuildOptions {
   type?: string;
   channel?: string;
   distribution?: string;
+  variant?: string;
 }
 
 function parseFilename(filename: string): { os: string; arch: string; type: string } | null {
@@ -68,9 +69,14 @@ export async function uploadBuild(version: string, filePath: string, options: Up
   try {
     const channel = options.channel || 'stable';
     const distribution = options.distribution || 'direct';
+    const variant = options.variant || DEFAULT_VARIANT;
 
     if (!isSupportedDistribution(distribution)) {
       throw new Error(`Invalid distribution: ${distribution}. Supported: ${SUPPORTED_DISTRIBUTIONS.join(', ')}`);
+    }
+
+    if (!isValidVariant(variant)) {
+      throw new Error(`Invalid variant: "${variant}". Must be alphanumeric, hyphens and underscores only (max 50 chars).`);
     }
 
     // Get version ID
@@ -138,13 +144,14 @@ export async function uploadBuild(version: string, filePath: string, options: Up
         arch,
         type,
         distribution,
+        variant,
         package_name: filename,
         url: buildUrl,
         size: fileSize,
         sha256_checksum: sha256,
         sha512_checksum: sha512
       }, {
-        onConflict: 'version_id,os,arch,type,distribution'
+        onConflict: 'version_id,os,arch,type,distribution,variant'
       });
 
     if (dbError) throw dbError;
@@ -153,7 +160,7 @@ export async function uploadBuild(version: string, filePath: string, options: Up
     console.log(chalk.gray(`  Version: ${version}`));
     console.log(chalk.gray(`  Channel: ${versionData.release_channel}`));
     console.log(chalk.gray(`  Platform: ${os}/${arch}`));
-    console.log(chalk.gray(`  Type: ${type} (${distribution})`));
+    console.log(chalk.gray(`  Type: ${type} (${distribution}) [variant: ${variant}]`));
     console.log(chalk.gray(`  Size: ${(fileSize / 1024 / 1024).toFixed(2)} MB`));
     console.log(chalk.gray(`  SHA256: ${sha256}`));
     console.log(chalk.gray(`  SHA512: ${sha512.substring(0, 32)}...`));
@@ -170,16 +177,21 @@ export async function createBuild(
   arch: string,
   type: string,
   url: string,
-  options: { size?: number; sha256?: string; sha512?: string; packageName?: string; channel?: string; distribution?: string }
+  options: { size?: number; sha256?: string; sha512?: string; packageName?: string; channel?: string; distribution?: string; variant?: string }
 ) {
   const spinner = ora('Creating build record...').start();
 
   try {
     const channel = options.channel || 'stable';
     const distribution = options.distribution || 'store';
+    const variant = options.variant || DEFAULT_VARIANT;
 
     if (!isSupportedDistribution(distribution)) {
       throw new Error(`Invalid distribution: ${distribution}. Supported: ${SUPPORTED_DISTRIBUTIONS.join(', ')}`);
+    }
+
+    if (!isValidVariant(variant)) {
+      throw new Error(`Invalid variant: "${variant}". Must be alphanumeric, hyphens and underscores only (max 50 chars).`);
     }
 
     // Get version ID
@@ -217,6 +229,7 @@ export async function createBuild(
         arch,
         type,
         distribution,
+        variant,
         package_name: packageName,
         url,
         size: options.size || 0,
@@ -227,7 +240,7 @@ export async function createBuild(
           source: 'manual'
         }
       }, {
-        onConflict: 'version_id,os,arch,type,distribution'
+        onConflict: 'version_id,os,arch,type,distribution,variant'
       });
 
     if (dbError) throw dbError;
@@ -236,7 +249,7 @@ export async function createBuild(
     console.log(chalk.gray(`  Version: ${version}`));
     console.log(chalk.gray(`  Channel: ${versionData.release_channel}`));
     console.log(chalk.gray(`  Platform: ${os}/${arch}`));
-    console.log(chalk.gray(`  Type: ${type} (${distribution})`));
+    console.log(chalk.gray(`  Type: ${type} (${distribution}) [variant: ${variant}]`));
     console.log(chalk.gray(`  Package: ${packageName}`));
     console.log(chalk.gray(`  URL: ${url}`));
     if (options.size) {
@@ -290,7 +303,8 @@ export async function listBuilds(version: string, options: { channel?: string })
     data.forEach((build: any) => {
       const external = build.platform_metadata?.external ? chalk.blue(' [EXTERNAL]') : '';
       const sizeMB = build.size ? (build.size / 1024 / 1024).toFixed(2) : '0.00';
-      console.log(`  ${chalk.bold(`${build.os}/${build.arch}`)} (${build.type}/${build.distribution || 'direct'})${external}`);
+      const variantLabel = build.variant && build.variant !== 'default' ? chalk.cyan(` [${build.variant}]`) : '';
+      console.log(`  ${chalk.bold(`${build.os}/${build.arch}`)} (${build.type}/${build.distribution || 'direct'})${variantLabel}${external}`);
       console.log(chalk.gray(`    Package: ${build.package_name}`));
       console.log(chalk.gray(`    Size: ${sizeMB} MB`));
       console.log(chalk.gray(`    URL: ${build.url}`));
@@ -306,7 +320,7 @@ export async function deleteBuild(
   os: string,
   arch: string,
   type: string,
-  options: { channel?: string; distribution?: string; yes?: boolean }
+  options: { channel?: string; distribution?: string; variant?: string; yes?: boolean }
 ) {
   const channel = options.channel || 'stable';
   const spinner = ora(`Looking up build ${os}/${arch}/${type} for ${version} (${channel})...`).start();
@@ -337,6 +351,10 @@ export async function deleteBuild(
 
     if (options.distribution) {
       query = query.eq('distribution', options.distribution);
+    }
+
+    if (options.variant) {
+      query = query.eq('variant', options.variant);
     }
 
     const { data: builds, error: buildsError } = await query;
