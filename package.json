@@ -18,16 +18,19 @@
     "dev": "tsx src/index.ts",
     "start": "node dist/index.js",
     "pkg": "npm run build && pkg . --compress GZip",
-    "pkg:all": "npm run build && pkg . --targets node18-macos-arm64,node18-macos-x64,node18-linux-x64,node18-win-x64 --out-path bin --compress GZip",
-    "pkg:macos-arm64": "npm run build && pkg . --targets node18-macos-arm64 --output bin/publisher-macos-arm64 --compress GZip",
-    "pkg:macos-x64": "npm run build && pkg . --targets node18-macos-x64 --output bin/publisher-macos-x64 --compress GZip",
-    "pkg:linux-x64": "npm run build && pkg . --targets node18-linux-x64 --output bin/publisher-linux-x64 --compress GZip",
-    "pkg:win-x64": "npm run build && pkg . --targets node18-win-x64 --output bin/publisher-win-x64.exe --compress GZip"
+    "pkg:all": "npm run build && pkg . --targets node20-macos-arm64,node20-macos-x64,node20-linux-x64,node20-win-x64 --out-path bin --compress GZip",
+    "pkg:macos-arm64": "npm run build && pkg . --targets node20-macos-arm64 --output bin/publisher-macos-arm64 --compress GZip",
+    "pkg:macos-x64": "npm run build && pkg . --targets node20-macos-x64 --output bin/publisher-macos-x64 --compress GZip",
+    "pkg:linux-x64": "npm run build && pkg . --targets node20-linux-x64 --output bin/publisher-linux-x64 --compress GZip",
+    "pkg:win-x64": "npm run build && pkg . --targets node20-win-x64 --output bin/publisher-win-x64.exe --compress GZip"
   },
   "pkg": {
     "scripts": "dist/**/*.js",
     "assets": [],
     "outputPath": "bin"
+  },
+  "engines": {
+    "node": ">=20"
   },
   "keywords": [
     "publisher",
@@ -62,7 +65,7 @@
     "@types/node": "^20.11.0",
     "@types/prompts": "^2.4.9",
     "@types/semver": "^7.5.6",
-    "pkg": "^5.8.1",
+    "@yao-pkg/pkg": "^6.14.1",
     "tsx": "^4.7.0",
     "typescript": "^5.3.3"
   }

@@ -1,5 +1,5 @@
 export declare const SUPPORTED_OS: readonly ["macos", "windows", "linux", "ios", "android"];
-export declare const SUPPORTED_ARCH: readonly ["arm64", "x64", "x86"];
+export declare const SUPPORTED_ARCH: readonly ["arm64", "armv7", "x64", "x86"];
 export declare const SUPPORTED_BUILD_TYPES: readonly ["patch", "installer"];
 export declare const SUPPORTED_CHANNELS: readonly ["stable", "beta", "alpha"];
 export declare const SUPPORTED_DISTRIBUTIONS: readonly ["direct", "store"];

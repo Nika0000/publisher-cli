@@ -99,7 +99,11 @@ create policy "Service role full access to builds"
   with check (true);
 
 -- Indexes
-create unique index if not exists idx_versions_version_name on application.versions(version_name);
+-- Note: idx_versions_version_name is intentionally not created here; the inline
+-- `unique` constraint on version_name already provides the underlying index
+-- (versions_version_name_key). Creating a second unique index on the same column
+-- would be re-introduced by re-runs of this migration and conflict with the
+-- channel-scoped compound uniqueness established in 0002_release_channels.sql.
 create index if not exists idx_versions_release_date on application.versions(release_date desc);
 create index if not exists idx_versions_created_at on application.versions(created_at desc);
 create index if not exists idx_versions_is_published on application.versions(is_published) where is_published = true;

@@ -1,7 +1,7 @@
 import semver from 'semver';
 
 export const SUPPORTED_OS = ['macos', 'windows', 'linux', 'ios', 'android'] as const;
-export const SUPPORTED_ARCH = ['arm64', 'x64', 'x86'] as const;
+export const SUPPORTED_ARCH = ['arm64', 'armv7', 'x64', 'x86'] as const;
 export const SUPPORTED_BUILD_TYPES = ['patch', 'installer'] as const;
 export const SUPPORTED_CHANNELS = ['stable', 'beta', 'alpha'] as const;
 export const SUPPORTED_DISTRIBUTIONS = ['direct', 'store'] as const;
