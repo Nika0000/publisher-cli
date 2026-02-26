@@ -1,6 +1,6 @@
 {
   "name": "publisher-cli",
-  "version": "2026.2.26-t151258",
+  "version": "2026.2.26-t152426",
   "description": "Publisher CLI for app versions, channels, builds, and manifests",
   "main": "dist/index.js",
   "bin": {
