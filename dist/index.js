@@ -2,6 +2,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.cdnUrl = exports.supabase = void 0;
+exports.reinitSupabase = reinitSupabase;
 const commander_1 = require("commander");
 const dotenv_1 = require("dotenv");
 const supabase_js_1 = require("@supabase/supabase-js");
@@ -12,52 +13,76 @@ const config_js_1 = require("./commands/config.js");
 const update_js_1 = require("./commands/update.js");
 const config_js_2 = require("./utils/config.js");
 const package_json_1 = require("../package.json");
+const repl_js_1 = require("./repl.js");
+const banner_js_1 = require("./ui/banner.js");
+const theme_js_1 = require("./ui/theme.js");
+const log_js_1 = require("./ui/log.js");
 // Load environment variables from .env file (if exists)
 (0, dotenv_1.config)();
-// Load from config file if env vars not set
-const configFile = (0, config_js_2.loadConfig)();
-// Get credentials from env vars or config file
-const SUPABASE_URL = process.env.SUPABASE_URL || configFile.SUPABASE_URL;
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || configFile.SUPABASE_ANON_KEY;
-const APP_PUBLISHER_KEY = process.env.APP_PUBLISHER_KEY || configFile.APP_PUBLISHER_KEY;
-const resolvedSupabaseUrl = SUPABASE_URL ? SUPABASE_URL.replace(/\/$/, '') : '';
-const DEFAULT_CDN_URL = resolvedSupabaseUrl ? `${resolvedSupabaseUrl}/storage/v1/object/public/` : undefined;
-const CDN_URL = process.env.CDN_URL || configFile.CDN_URL || DEFAULT_CDN_URL;
-// Skip validation for config commands
-const isConfigCommand = process.argv[2]?.startsWith('config');
-if (!isConfigCommand && (!SUPABASE_URL || !SUPABASE_ANON_KEY || !APP_PUBLISHER_KEY)) {
-    console.error('❌ Missing required credentials:');
-    console.error('   SUPABASE_URL, SUPABASE_ANON_KEY, APP_PUBLISHER_KEY');
-    console.error('   Optional: CDN_URL (auto-derived from SUPABASE_URL if omitted)');
-    console.error('');
-    console.error('Configure using one of these methods:');
-    console.error('  1. Environment variables (for development):');
-    console.error('     export SUPABASE_URL="https://..."');
-    console.error('  2. .env file (for development):');
-    console.error('     Create .env file with credentials');
-    console.error('  3. CLI config (for executable):');
-    console.error('     publisher config:set SUPABASE_URL "https://..."');
-    process.exit(1);
-}
-// Create Supabase client (only if credentials are available)
-exports.supabase = isConfigCommand
-    ? null
-    : (0, supabase_js_1.createClient)(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        db: {
-            schema: 'application',
-        },
+exports.supabase = null;
+exports.cdnUrl = '';
+function reinitSupabase() {
+    const cfg = (0, config_js_2.loadConfig)();
+    const url = process.env.SUPABASE_URL || cfg.SUPABASE_URL;
+    const anon = process.env.SUPABASE_ANON_KEY || cfg.SUPABASE_ANON_KEY;
+    const key = process.env.APP_PUBLISHER_KEY || cfg.APP_PUBLISHER_KEY;
+    if (!url || !anon || !key) {
+        exports.supabase = null;
+        exports.cdnUrl = '';
+        return false;
+    }
+    const resolved = url.replace(/\/$/, '');
+    const defaultCdn = `${resolved}/storage/v1/object/public/`;
+    exports.cdnUrl = process.env.CDN_URL || cfg.CDN_URL || defaultCdn;
+    exports.supabase = (0, supabase_js_1.createClient)(url, anon, {
+        db: { schema: 'application' },
         global: {
             headers: {
-                Authorization: `Bearer ${APP_PUBLISHER_KEY}`,
+                Authorization: `Bearer ${key}`,
             },
         },
     });
-exports.cdnUrl = CDN_URL || '';
+    return true;
+}
+let hasCredentials = reinitSupabase();
+// Skip validation for config commands, interactive launch, and help/version flags
+const firstArg = process.argv[2];
+const isConfigCommand = firstArg?.startsWith('config');
+const isInteractiveLaunch = !firstArg || firstArg === 'chat' || firstArg === 'interactive';
+const isHelpOrVersion = firstArg === '--help' || firstArg === '-h' ||
+    firstArg === 'help' ||
+    firstArg === '--version' || firstArg === '-V';
+if (!isConfigCommand && !isInteractiveLaunch && !isHelpOrVersion && !hasCredentials) {
+    log_js_1.ui.error('Missing required credentials.');
+    console.log('');
+    log_js_1.ui.heading('Configure using one of these methods:');
+    log_js_1.ui.hint('1. Run interactive setup:  publisher chat');
+    log_js_1.ui.hint('2. Set via CLI:           publisher config:set SUPABASE_URL "https://..."');
+    log_js_1.ui.hint('3. Environment variables:  export SUPABASE_URL="https://..."');
+    log_js_1.ui.hint('4. .env file with the same keys');
+    process.exit(1);
+}
 const program = new commander_1.Command();
 program
     .name('publisher')
-    .description('Publisher CLI for app version and build management')
+    .description(`${theme_js_1.theme.brandBold('Publisher CLI')} ${theme_js_1.theme.muted('— versions, builds, channels, and update manifests.')}`)
     .version(package_json_1.version);
+program.addHelpText('beforeAll', `\n${(0, banner_js_1.renderBanner)(package_json_1.version)}\n`);
+program.addHelpText('after', `\n${theme_js_1.theme.muted('Run')} ${theme_js_1.theme.accent('publisher chat')} ${theme_js_1.theme.muted('to enter interactive mode.')}\n`);
+program
+    .command('chat')
+    .alias('interactive')
+    .description('Start interactive mode (REPL with slash commands)')
+    .action(async () => {
+    await (0, repl_js_1.startRepl)(program, package_json_1.version, {
+        reinitSupabase: () => {
+            const ok = reinitSupabase();
+            hasCredentials = ok;
+            return ok;
+        },
+        needsSetup: !hasCredentials,
+    });
+});
 // Config commands
 program
     .command('config:set <key> <value>')
@@ -166,5 +191,22 @@ program
     .option('--device-id <deviceId>', 'Stable device identifier for rollout bucketing')
     .option('--allow-prerelease', 'Allow pre-release target versions', false)
     .action(update_js_1.checkForUpdate);
-program.parse();
+if (!firstArg) {
+    if (process.stdin.isTTY) {
+        (0, repl_js_1.startRepl)(program, package_json_1.version, {
+            reinitSupabase: () => {
+                const ok = reinitSupabase();
+                hasCredentials = ok;
+                return ok;
+            },
+            needsSetup: !hasCredentials,
+        });
+    }
+    else {
+        program.outputHelp();
+    }
+}
+else {
+    program.parse();
+}
 //# sourceMappingURL=index.js.map

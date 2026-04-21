@@ -9,62 +9,89 @@ import { setConfig, getConfig, deleteConfig, resetConfig } from './commands/conf
 import { checkForUpdate } from './commands/update.js';
 import { loadConfig } from './utils/config.js';
 import { version as pkgVersion } from '../package.json';
+import { startRepl } from './repl.js';
+import { renderBanner } from './ui/banner.js';
+import { theme } from './ui/theme.js';
+import { ui } from './ui/log.js';
 
 // Load environment variables from .env file (if exists)
 config();
 
-// Load from config file if env vars not set
-const configFile = loadConfig();
+export let supabase: any = null;
+export let cdnUrl: string = '';
 
-// Get credentials from env vars or config file
-const SUPABASE_URL = process.env.SUPABASE_URL || configFile.SUPABASE_URL;
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || configFile.SUPABASE_ANON_KEY;
-const APP_PUBLISHER_KEY = process.env.APP_PUBLISHER_KEY || configFile.APP_PUBLISHER_KEY;
-const resolvedSupabaseUrl = SUPABASE_URL ? SUPABASE_URL.replace(/\/$/, '') : '';
-const DEFAULT_CDN_URL = resolvedSupabaseUrl ? `${resolvedSupabaseUrl}/storage/v1/object/public/` : undefined;
-const CDN_URL = process.env.CDN_URL || configFile.CDN_URL || DEFAULT_CDN_URL;
+export function reinitSupabase(): boolean {
+  const cfg = loadConfig();
+  const url = process.env.SUPABASE_URL || cfg.SUPABASE_URL;
+  const anon = process.env.SUPABASE_ANON_KEY || cfg.SUPABASE_ANON_KEY;
+  const key = process.env.APP_PUBLISHER_KEY || cfg.APP_PUBLISHER_KEY;
 
-// Skip validation for config commands
-const isConfigCommand = process.argv[2]?.startsWith('config');
+  if (!url || !anon || !key) {
+    supabase = null;
+    cdnUrl = '';
+    return false;
+  }
 
-if (!isConfigCommand && (!SUPABASE_URL || !SUPABASE_ANON_KEY || !APP_PUBLISHER_KEY)) {
-  console.error('❌ Missing required credentials:');
-  console.error('   SUPABASE_URL, SUPABASE_ANON_KEY, APP_PUBLISHER_KEY');
-  console.error('   Optional: CDN_URL (auto-derived from SUPABASE_URL if omitted)');
-  console.error('');
-  console.error('Configure using one of these methods:');
-  console.error('  1. Environment variables (for development):');
-  console.error('     export SUPABASE_URL="https://..."');
-  console.error('  2. .env file (for development):');
-  console.error('     Create .env file with credentials');
-  console.error('  3. CLI config (for executable):');
-  console.error('     publisher config:set SUPABASE_URL "https://..."');
-  process.exit(1);
+  const resolved = url.replace(/\/$/, '');
+  const defaultCdn = `${resolved}/storage/v1/object/public/`;
+  cdnUrl = process.env.CDN_URL || cfg.CDN_URL || defaultCdn;
+
+  supabase = createClient(url, anon, {
+    db: { schema: 'application' },
+    global: {
+      headers: {
+        Authorization: `Bearer ${key}`,
+      },
+    },
+  });
+  return true;
 }
 
-// Create Supabase client (only if credentials are available)
-export const supabase = isConfigCommand 
-  ? null as any 
-  : createClient(SUPABASE_URL!, SUPABASE_ANON_KEY!, 
-     {
-      db: {
-        schema: 'application',
-      },
-      global: {
-        headers: {
-          Authorization: `Bearer ${APP_PUBLISHER_KEY}`,
-        },
-      },
-    }
-  );
-export const cdnUrl = CDN_URL || '';
+let hasCredentials = reinitSupabase();
+
+// Skip validation for config commands, interactive launch, and help/version flags
+const firstArg = process.argv[2];
+const isConfigCommand = firstArg?.startsWith('config');
+const isInteractiveLaunch = !firstArg || firstArg === 'chat' || firstArg === 'interactive';
+const isHelpOrVersion = firstArg === '--help' || firstArg === '-h' ||
+                        firstArg === 'help' ||
+                        firstArg === '--version' || firstArg === '-V';
+
+if (!isConfigCommand && !isInteractiveLaunch && !isHelpOrVersion && !hasCredentials) {
+  ui.error('Missing required credentials.');
+  console.log('');
+  ui.heading('Configure using one of these methods:');
+  ui.hint('1. Run interactive setup:  publisher chat');
+  ui.hint('2. Set via CLI:           publisher config:set SUPABASE_URL "https://..."');
+  ui.hint('3. Environment variables:  export SUPABASE_URL="https://..."');
+  ui.hint('4. .env file with the same keys');
+  process.exit(1);
+}
 
 const program = new Command();
 
 program
   .name('publisher')
-  .description('Publisher CLI for app version and build management')
+  .description(`${theme.brandBold('Publisher CLI')} ${theme.muted('— versions, builds, channels, and update manifests.')}`)
   .version(pkgVersion);
+
+program.addHelpText('beforeAll', `\n${renderBanner(pkgVersion)}\n`);
+program.addHelpText('after', `\n${theme.muted('Run')} ${theme.accent('publisher chat')} ${theme.muted('to enter interactive mode.')}\n`);
+
+program
+  .command('chat')
+  .alias('interactive')
+  .description('Start interactive mode (REPL with slash commands)')
+  .action(async () => {
+    await startRepl(program, pkgVersion, {
+      reinitSupabase: () => {
+        const ok = reinitSupabase();
+        hasCredentials = ok;
+        return ok;
+      },
+      needsSetup: !hasCredentials,
+    });
+  });
 
 // Config commands
 program
@@ -189,4 +216,19 @@ program
   .option('--allow-prerelease', 'Allow pre-release target versions', false)
   .action(checkForUpdate);
 
-program.parse();
+if (!firstArg) {
+  if (process.stdin.isTTY) {
+    startRepl(program, pkgVersion, {
+      reinitSupabase: () => {
+        const ok = reinitSupabase();
+        hasCredentials = ok;
+        return ok;
+      },
+      needsSetup: !hasCredentials,
+    });
+  } else {
+    program.outputHelp();
+  }
+} else {
+  program.parse();
+}

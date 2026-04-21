@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified">
+
+  <xs:simpleType name="ChannelType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="stable"/>
+      <xs:enumeration value="beta"/>
+      <xs:enumeration value="alpha"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="DistributionType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="direct"/>
+      <xs:enumeration value="store"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="BuildKindType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="installer"/>
+      <xs:enumeration value="patch"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:attributeGroup name="BuildSourceAttrs">
+    <xs:attribute name="type" type="BuildKindType" use="required"/>
+    <xs:attribute name="distribution" type="DistributionType" use="required"/>
+    <xs:attribute name="url" type="xs:anyURI" use="required"/>
+    <xs:attribute name="size" type="xs:long"/>
+    <xs:attribute name="packageName" type="xs:string"/>
+    <xs:attribute name="releaseDate" type="xs:dateTime"/>
+    <xs:attribute name="version" type="xs:string"/>
+    <xs:attribute name="sha256" type="xs:string"/>
+    <xs:attribute name="sha512" type="xs:string"/>
+    <xs:attribute name="fallbackFrom" type="xs:string"/>
+    <xs:attribute name="external" type="xs:boolean" default="false"/>
+  </xs:attributeGroup>
+
+  <xs:complexType name="SourceType">
+    <xs:attributeGroup ref="BuildSourceAttrs"/>
+  </xs:complexType>
+
+  <xs:complexType name="BuildType">
+    <xs:sequence>
+      <xs:element name="source" type="SourceType" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attributeGroup ref="BuildSourceAttrs"/>
+  </xs:complexType>
+
+  <xs:complexType name="VariantType">
+    <xs:sequence>
+      <xs:element name="build" type="BuildType" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="name" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="ArchType">
+    <xs:sequence>
+      <xs:element name="variant" type="VariantType" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="name" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="PlatformType">
+    <xs:sequence>
+      <xs:element name="arch" type="ArchType" maxOccurs="unbounded"/>
+    </xs:sequence>
+    <xs:attribute name="os" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="UpdatePolicyType">
+    <xs:attribute name="channel" type="ChannelType" use="required"/>
+    <xs:attribute name="rolloutPercentage" type="xs:int" use="required"/>
+    <xs:attribute name="minSupportedVersion" type="xs:string"/>
+    <xs:attribute name="rolloutStartAt" type="xs:dateTime"/>
+    <xs:attribute name="rolloutEndAt" type="xs:dateTime"/>
+  </xs:complexType>
+
+  <xs:element name="manifest">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="releaseNotes" type="xs:string" minOccurs="0"/>
+        <xs:element name="changelog" type="xs:string" minOccurs="0"/>
+        <xs:element name="updatePolicy" type="UpdatePolicyType"/>
+        <xs:element name="platforms">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="platform" type="PlatformType" maxOccurs="unbounded"/>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+      </xs:sequence>
+      <xs:attribute name="schemaVersion" type="xs:int" use="required"/>
+      <xs:attribute name="name" type="xs:string" use="required"/>
+      <xs:attribute name="version" type="xs:string" use="required"/>
+      <xs:attribute name="channel" type="ChannelType" use="required"/>
+      <xs:attribute name="releaseDate" type="xs:dateTime" use="required"/>
+      <xs:attribute name="mandatory" type="xs:boolean" use="required"/>
+    </xs:complexType>
+  </xs:element>
+
+</xs:schema>

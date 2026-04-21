@@ -10,6 +10,7 @@ const ora_1 = __importDefault(require("ora"));
 const chalk_1 = __importDefault(require("chalk"));
 const prompts_1 = __importDefault(require("prompts"));
 const index_js_1 = require("../index.js");
+const manifest_js_1 = require("../utils/manifest.js");
 const versioning_js_1 = require("../utils/versioning.js");
 const appDb = () => index_js_1.supabase.schema('application');
 async function publishVersion(version, options) {
@@ -161,10 +162,10 @@ async function publishVersion(version, options) {
         spinner.stop();
         console.log(chalk_1.default.yellow('\n⚠ Publish Alert'));
         console.log(chalk_1.default.gray(`  Channel: ${channel}`));
-        console.log(chalk_1.default.gray(`  Version Manifest: archive/${storagePrefix}/manifest.json`));
-        console.log(chalk_1.default.gray(`  Channel Manifest: archive/channels/${channel}/manifest.json`));
+        console.log(chalk_1.default.gray(`  Version Manifest: archive/${storagePrefix}/${manifest_js_1.MANIFEST_FILENAME}`));
+        console.log(chalk_1.default.gray(`  Channel Manifest: archive/channels/${channel}/${manifest_js_1.MANIFEST_FILENAME}`));
         console.log(chalk_1.default.gray(`  Platforms in version manifest: ${review.manifest.platforms.length}`));
-        console.log(chalk_1.default.gray(`  Mandatory: ${review.manifest.isMandatory ? 'yes' : 'no'}`));
+        console.log(chalk_1.default.gray(`  Mandatory: ${review.manifest.mandatory ? 'yes' : 'no'}`));
         if (!options.yes) {
             const response = await (0, prompts_1.default)({
                 type: 'confirm',
@@ -193,8 +194,8 @@ async function publishVersion(version, options) {
         await generateLatestManifest(channel);
         publishSpinner.succeed(chalk_1.default.green(`✓ Version ${version} (${channel}) published`));
         console.log(chalk_1.default.gray(`  Manifests generated:`));
-        console.log(chalk_1.default.gray(`    - archive/${storagePrefix}/manifest.json`));
-        console.log(chalk_1.default.gray(`    - archive/channels/${channel}/manifest.json`));
+        console.log(chalk_1.default.gray(`    - archive/${storagePrefix}/${manifest_js_1.MANIFEST_FILENAME}`));
+        console.log(chalk_1.default.gray(`    - archive/channels/${channel}/${manifest_js_1.MANIFEST_FILENAME}`));
     }
     catch (error) {
         console.error(chalk_1.default.red(`\nFailed to publish version: ${error.message}`));
@@ -209,8 +210,8 @@ async function generateManifest(version, options = {}) {
         const { manifest, manifestPath } = await buildVersionManifest(version, channel);
         const { error: uploadError } = await index_js_1.supabase.storage
             .from('archive')
-            .upload(manifestPath, JSON.stringify(manifest, null, 2), {
-            contentType: 'application/json',
+            .upload(manifestPath, (0, manifest_js_1.manifestToXml)(manifest), {
+            contentType: manifest_js_1.MANIFEST_CONTENT_TYPE,
             upsert: true
         });
         if (uploadError)
@@ -237,7 +238,7 @@ async function generateManifest(version, options = {}) {
                     spinner.text = `Updating channel latest manifest for ${channel}...`;
                 await generateLatestManifest(channel);
                 if (showSpinner) {
-                    console.log(chalk_1.default.gray(`  Channel URL: ${normalizedCdnUrl}archive/channels/${channel}/manifest.json`));
+                    console.log(chalk_1.default.gray(`  Channel URL: ${normalizedCdnUrl}archive/channels/${channel}/${manifest_js_1.MANIFEST_FILENAME}`));
                 }
             }
         }
@@ -268,29 +269,14 @@ async function buildVersionManifest(version, channel) {
     if (buildsError) {
         throw buildsError;
     }
-    const platforms = buildPlatformsArray((builds || []).map(mapBuildRowToPlatformPayload));
-    const updatePolicy = (0, versioning_js_1.getUpdatePolicyFromVersion)(versionData);
     const storagePrefix = versionData.storage_key_prefix || `releases/${channel}/${version}`;
-    const manifest = {
-        name: 'App',
-        manifestVersion: versionData.manifest_version,
-        version: versionData.version_name,
-        channel: versionData.release_channel,
-        releaseDate: versionData.release_date,
-        isMandatory: versionData.is_mandatory,
-        releaseNotes: versionData.release_notes,
-        changelog: versionData.changelog,
-        updatePolicy,
-        platforms
-    };
     return {
-        manifest,
-        manifestPath: `${storagePrefix}/manifest.json`,
+        manifest: (0, manifest_js_1.assembleVersionManifest)(versionData, builds || []),
+        manifestPath: `${storagePrefix}/${manifest_js_1.MANIFEST_FILENAME}`,
     };
 }
 async function generateLatestManifest(channel) {
     try {
-        // Get all published versions
         const { data: versions, error } = await appDb()
             .from('versions')
             .select('*')
@@ -311,50 +297,14 @@ async function generateLatestManifest(channel) {
         const buildsByVersionId = new Map();
         for (const build of builds || []) {
             const current = buildsByVersionId.get(build.version_id) || [];
-            current.push(mapBuildRowToPlatformPayload(build));
+            current.push(build);
             buildsByVersionId.set(build.version_id, current);
         }
-        const versionsWithPlatforms = versions.map((version) => ({
-            ...version,
-            platforms: buildsByVersionId.get(version.id) || []
-        }));
-        // Prefer semantic version order to avoid created_at drift
-        const orderedVersions = (0, versioning_js_1.sortVersionsDesc)(versionsWithPlatforms, (v) => v.version_name);
-        const latestVersion = orderedVersions[0];
-        const latestPolicy = (0, versioning_js_1.getUpdatePolicyFromVersion)(latestVersion);
-        // Pick latest build per os/arch/type based on semantic version order
-        const selectedBuildBySource = new Map();
-        for (const version of orderedVersions) {
-            for (const build of version.platforms || []) {
-                const distribution = resolveDistribution(build);
-                const comboKey = `${build.os}::${build.arch}::${build.variant || 'default'}::${build.type}::${distribution}`;
-                if (!selectedBuildBySource.has(comboKey)) {
-                    selectedBuildBySource.set(comboKey, {
-                        ...build,
-                        sourceVersion: version.version_name,
-                        distribution,
-                    });
-                }
-            }
-        }
-        const latestPlatforms = buildPlatformsArray(Array.from(selectedBuildBySource.values()));
-        const manifest = {
-            name: 'App',
-            manifestVersion: latestVersion.manifest_version,
-            version: latestVersion.version_name,
-            channel: latestVersion.release_channel,
-            releaseDate: latestVersion.release_date,
-            isMandatory: latestVersion.is_mandatory,
-            releaseNotes: latestVersion.release_notes,
-            changelog: latestVersion.changelog,
-            updatePolicy: latestPolicy,
-            platforms: latestPlatforms
-        };
-        // Upload channel latest manifest
+        const manifest = (0, manifest_js_1.assembleChannelLatestManifest)(versions, buildsByVersionId);
         const { error: uploadError } = await index_js_1.supabase.storage
             .from('archive')
-            .upload(`channels/${channel}/manifest.json`, JSON.stringify(manifest, null, 2), {
-            contentType: 'application/json',
+            .upload(`channels/${channel}/${manifest_js_1.MANIFEST_FILENAME}`, (0, manifest_js_1.manifestToXml)(manifest), {
+            contentType: manifest_js_1.MANIFEST_CONTENT_TYPE,
             upsert: true
         });
         if (uploadError)
@@ -363,113 +313,5 @@ async function generateLatestManifest(channel) {
     catch (error) {
         throw new Error(`Failed to generate latest manifest: ${error.message}`);
     }
-}
-function buildPlatformsArray(builds) {
-    const platformMap = new Map();
-    for (const build of builds) {
-        if (!platformMap.has(build.os)) {
-            platformMap.set(build.os, {
-                os: build.os,
-                builds: {}
-            });
-        }
-        const platform = platformMap.get(build.os);
-        if (!platform.builds[build.arch]) {
-            platform.builds[build.arch] = {};
-        }
-        const variant = build.variant || 'default';
-        if (!platform.builds[build.arch][variant]) {
-            platform.builds[build.arch][variant] = {};
-        }
-        if (!platform.builds[build.arch][variant][build.type]) {
-            platform.builds[build.arch][variant][build.type] = {
-                sources: []
-            };
-        }
-        const typeEntry = platform.builds[build.arch][variant][build.type];
-        const distribution = resolveDistribution(build);
-        const source = {
-            url: build.url,
-            size: build.size,
-            packageName: build.packageName,
-            releaseDate: build.createdAt,
-            type: build.type,
-            distribution,
-            ...(build.sourceVersion && {
-                version: build.sourceVersion
-            }),
-            sha256: build.sha256Checksum,
-            sha512: build.sha512Checksum,
-            ...(build.platformMetadata?.fallback_from && {
-                fallbackFrom: build.platformMetadata.fallback_from
-            }),
-            ...(build.platformMetadata?.external && {
-                external: build.platformMetadata.external
-            })
-        };
-        typeEntry.sources.push(source);
-    }
-    // Choose primary source per build type and keep alternatives
-    for (const platform of platformMap.values()) {
-        for (const arch of Object.keys(platform.builds)) {
-            for (const variant of Object.keys(platform.builds[arch])) {
-                for (const type of Object.keys(platform.builds[arch][variant])) {
-                    const typeEntry = platform.builds[arch][variant][type];
-                    const sortedSources = [...typeEntry.sources].sort((a, b) => {
-                        const byDistribution = rankDistribution(a.distribution) - rankDistribution(b.distribution);
-                        if (byDistribution !== 0) {
-                            return byDistribution;
-                        }
-                        const aTs = new Date(a.releaseDate || 0).getTime();
-                        const bTs = new Date(b.releaseDate || 0).getTime();
-                        return bTs - aTs;
-                    });
-                    const primary = sortedSources[0];
-                    platform.builds[arch][variant][type] = {
-                        ...primary,
-                        ...(sortedSources.length > 1 && { sources: sortedSources })
-                    };
-                }
-            }
-        }
-    }
-    // Collapse variant tier: if the only variant for an arch is "default",
-    // hoist its type map directly under the arch key.
-    // Multiple variants (or any non-default variant) keep the full structure.
-    for (const platform of platformMap.values()) {
-        for (const arch of Object.keys(platform.builds)) {
-            const variantKeys = Object.keys(platform.builds[arch]);
-            if (variantKeys.length === 1 && variantKeys[0] === 'default') {
-                platform.builds[arch] = platform.builds[arch]['default'];
-            }
-        }
-    }
-    return Array.from(platformMap.values());
-}
-function resolveDistribution(build) {
-    const distribution = build.distribution;
-    if (distribution === 'store' || distribution === 'direct') {
-        return distribution;
-    }
-    return build.platformMetadata?.external ? 'store' : 'direct';
-}
-function rankDistribution(distribution) {
-    return distribution === 'store' ? 0 : 1;
-}
-function mapBuildRowToPlatformPayload(build) {
-    return {
-        os: build.os,
-        arch: build.arch,
-        type: build.type,
-        variant: build.variant || 'default',
-        distribution: build.distribution,
-        packageName: build.package_name,
-        url: build.url,
-        size: build.size,
-        platformMetadata: build.platform_metadata,
-        createdAt: build.created_at,
-        sha256Checksum: build.sha256_checksum,
-        sha512Checksum: build.sha512_checksum
-    };
 }
 //# sourceMappingURL=publish.js.map

@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<manifest schemaVersion="2" name="App" version="1.2.3" channel="stable"
+          releaseDate="2025-01-15T10:00:00Z" mandatory="false">
+  <releaseNotes><![CDATA[Bug fixes and performance improvements.]]></releaseNotes>
+  <changelog><![CDATA[- Fixed crash on startup
+- Improved update reliability]]></changelog>
+  <updatePolicy channel="stable" rolloutPercentage="100"
+                minSupportedVersion="1.0.0"/>
+  <platforms>
+    <platform os="windows">
+      <arch name="x64">
+        <variant name="default">
+          <build type="installer" distribution="direct"
+                 url="https://cdn.example.com/archive/releases/stable/1.2.3/App-1.2.3-win-x64.exe"
+                 size="52428800"
+                 packageName="App-1.2.3-win-x64.exe"
+                 releaseDate="2025-01-15T10:00:00Z"
+                 sha256="a3f1c0..."
+                 sha512="b2e9d4..."/>
+          <build type="patch" distribution="direct"
+                 url="https://cdn.example.com/archive/releases/stable/1.2.3/App-1.2.3-win-x64.patch"
+                 size="2097152"
+                 packageName="App-1.2.3-win-x64.patch"
+                 releaseDate="2025-01-15T10:00:00Z"
+                 sha256="9d8e5c..."/>
+        </variant>
+      </arch>
+    </platform>
+    <platform os="macos">
+      <arch name="arm64">
+        <variant name="default">
+          <build type="installer" distribution="direct"
+                 url="https://cdn.example.com/archive/releases/stable/1.2.3/App-1.2.3-mac-arm64.dmg"
+                 size="48234496"
+                 packageName="App-1.2.3-mac-arm64.dmg"
+                 releaseDate="2025-01-15T10:00:00Z"
+                 sha256="c1f2e3..."/>
+          <build type="installer" distribution="store"
+                 url="https://apps.apple.com/app/id123456789"
+                 releaseDate="2025-01-15T10:00:00Z"
+                 external="true"/>
+        </variant>
+      </arch>
+    </platform>
+    <platform os="ios">
+      <arch name="arm64">
+        <variant name="default">
+          <build type="installer" distribution="store"
+                 url="https://apps.apple.com/app/id123456789"
+                 releaseDate="2025-01-15T10:00:00Z"
+                 external="true"/>
+        </variant>
+      </arch>
+    </platform>
+  </platforms>
+</manifest>

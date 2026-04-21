@@ -16,12 +16,38 @@ npm install -g github:SpacerunApp/publisher-cli
 
 Binary: `publisher`
 
+## Interactive mode
+
+Run `publisher` (no args) or `publisher chat` to enter an interactive REPL:
+
+```
+❯ [stable] version:list --limit 5
+❯ [stable] /channel beta
+❯ [beta]   publish 1.2.0
+❯ [beta]   /help
+❯ [beta]   /exit
+```
+
+Slash commands:
+
+- `/help` — list slash and publisher commands
+- `/channel <stable|beta|alpha>` — set the active channel context (auto-applied as `--channel` to commands that don't pass one)
+- `/setup` — interactively configure Supabase credentials (URL, anon key, publisher key, optional CDN). Secret values are masked. Runs automatically on first launch when no credentials are found.
+- `/clear` — clear the screen
+- `/exit` — leave interactive mode (also Ctrl+D)
+
+Press `Tab` for command completion (slash commands, publisher commands, `--flags`, and channel values after `/channel` or `--channel`). As you type, the best matching command is shown as **ghost text** after the cursor — press `Tab` to accept it. If you type a command name that isn't recognized, the REPL shows a **"Did you mean…"** suggestion list (e.g. typing `build` suggests `build:create, build:delete, build:list, build:upload`; typing `list` suggests `build:list, version:list`).
+
+All regular `publisher` subcommands work inside the REPL without the `publisher` prefix.
+
 ## What this manages
 
 - Version records per channel (`stable`, `beta`, `alpha`)
 - Build records per platform/arch/type
-- Version manifest: `archive/releases/{channel}/{version}/manifest.json`
-- Channel manifest: `archive/channels/{channel}/manifest.json`
+- Version manifest: `archive/releases/{channel}/{version}/manifest.xml`
+- Channel manifest: `archive/channels/{channel}/manifest.xml`
+
+Manifests are XML (schema version 2). See `manifest.xsd` for the schema and `manifest.example.xml` for a complete example.
 
 ## Setup
 

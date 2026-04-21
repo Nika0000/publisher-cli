@@ -2,8 +2,8 @@
 -- 
 -- Storage Bucket: archive
 -- Structure:
---   - archive/manifest.json (latest builds per platform)
---   - archive/{version}/manifest.json (version-specific manifest)
+--   - archive/manifest.xml (latest builds per platform)
+--   - archive/{version}/manifest.xml (version-specific manifest)
 --   - archive/{version}/{os}/{arch}/spacerun-{version}-{arch}-{os}.{ext}
 --
 -- Supported platforms: macos, windows, linux, ios, android
