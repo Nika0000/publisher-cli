@@ -35,7 +35,7 @@ function reinitSupabase() {
     const defaultCdn = `${resolved}/storage/v1/object/public/`;
     exports.cdnUrl = process.env.CDN_URL || cfg.CDN_URL || defaultCdn;
     exports.supabase = (0, supabase_js_1.createClient)(url, anon, {
-        db: { schema: 'application' },
+        db: { schema: 'publisher' },
         global: {
             headers: {
                 Authorization: `Bearer ${key}`,
@@ -100,6 +100,9 @@ program
     .command('config:reset')
     .description('Clear all configuration')
     .action(config_js_1.resetConfig);
+function collectMeta(value, previous) {
+    return [...(previous || []), value];
+}
 // Version commands
 program
     .command('version:create <version>')
@@ -147,6 +150,7 @@ program
     .option('-o, --os <os>', 'Operating system (macos, windows, linux, ios, android)')
     .option('-a, --arch <arch>', 'Architecture (arm64, x64, x86)')
     .option('-t, --type <type>', 'Build type (patch, installer)')
+    .option('--meta <keyValue>', 'Custom metadata as key=value (repeatable, e.g. --meta minOsVersion=12.0)', collectMeta, [])
     .action(build_js_1.uploadBuild);
 program
     .command('build:create <version> <os> <arch> <type> <url>')
@@ -158,6 +162,7 @@ program
     .option('--sha256 <hash>', 'SHA256 checksum')
     .option('--sha512 <hash>', 'SHA512 checksum')
     .option('-p, --package-name <name>', 'Package name')
+    .option('--meta <keyValue>', 'Custom metadata as key=value (repeatable, e.g. --meta minOsVersion=12.0)', collectMeta, [])
     .action(build_js_1.createBuild);
 program
     .command('build:list <version>')

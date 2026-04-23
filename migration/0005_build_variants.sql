@@ -6,20 +6,20 @@
 
 begin;
 
-alter table application.builds
+alter table publisher.builds
   add column if not exists variant varchar(50) not null default 'default';
 
-alter table application.builds
+alter table publisher.builds
   drop constraint if exists builds_version_id_os_arch_type_distribution_key;
 
-alter table application.builds
+alter table publisher.builds
   add constraint builds_version_id_os_arch_type_distribution_variant_key
   unique (version_id, os, arch, type, distribution, variant);
 
 drop index if exists idx_builds_os_arch_type_distribution;
 create index if not exists idx_builds_os_arch_type_dist_variant
-  on application.builds(os, arch, type, distribution, variant);
+  on publisher.builds(os, arch, type, distribution, variant);
 
-comment on column application.builds.variant is 'Build variant label, e.g. default, opengl, d3d11, arm, thumb';
+comment on column publisher.builds.variant is 'Build variant label, e.g. default, opengl, d3d11, arm, thumb';
 
 commit;

@@ -37,6 +37,10 @@ function rankDistribution(d) {
     return d === 'store' ? 0 : 1;
 }
 function toBuildSource(build) {
+    const custom = build.platformMetadata?.custom;
+    const metadata = custom && typeof custom === 'object' && Object.keys(custom).length > 0
+        ? custom
+        : null;
     return {
         url: build.url,
         size: build.size ?? null,
@@ -49,6 +53,7 @@ function toBuildSource(build) {
         sha512: build.sha512Checksum ?? null,
         fallbackFrom: build.platformMetadata?.fallback_from ?? null,
         external: build.platformMetadata?.external ?? false,
+        metadata,
     };
 }
 function buildPlatforms(rawBuilds) {
@@ -164,6 +169,16 @@ function buildSourceAttrs(src) {
         obj['@_external'] = true;
     return obj;
 }
+function metadataElement(metadata) {
+    if (!metadata)
+        return null;
+    const entries = Object.entries(metadata).filter(([, v]) => v !== null && v !== undefined && v !== '');
+    if (entries.length === 0)
+        return null;
+    return {
+        entry: entries.map(([key, value]) => ({ '@_key': key, '@_value': value })),
+    };
+}
 function manifestToBuilderObject(m) {
     const root = {
         '@_schemaVersion': m.schemaVersion,
@@ -193,8 +208,17 @@ function manifestToBuilderObject(m) {
                     '@_name': v.name,
                     build: Object.entries(v.builds).map(([_, entry]) => {
                         const obj = buildSourceAttrs(entry);
+                        const meta = metadataElement(entry.metadata);
+                        if (meta)
+                            obj.metadata = meta;
                         if (entry.sources && entry.sources.length > 0) {
-                            obj.source = entry.sources.map((s) => buildSourceAttrs(s));
+                            obj.source = entry.sources.map((s) => {
+                                const sObj = buildSourceAttrs(s);
+                                const sMeta = metadataElement(s.metadata);
+                                if (sMeta)
+                                    sObj.metadata = sMeta;
+                                return sObj;
+                            });
                         }
                         return obj;
                     }),

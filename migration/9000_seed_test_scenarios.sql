@@ -35,7 +35,7 @@ with seed_versions as (
     changelog
   )
 ), upsert_versions as (
-  insert into application.versions (
+  insert into publisher.versions (
     version_name,
     release_channel,
     is_published,
@@ -130,7 +130,7 @@ with seed_versions as (
     platform_metadata
   )
 )
-insert into application.builds (
+insert into publisher.builds (
   version_id,
   os,
   arch,
@@ -156,7 +156,7 @@ select
   br.sha512_checksum,
   br.platform_metadata
 from build_rows br
-join application.versions av
+join publisher.versions av
   on av.version_name = br.version_name
  and av.release_channel = br.release_channel
 on conflict (version_id, os, arch, type, distribution)
@@ -173,12 +173,12 @@ commit;
 
 -- Quick checks:
 -- select version_name, release_channel, is_published, is_mandatory, min_supported_version, rollout_percentage
--- from application.versions
+-- from publisher.versions
 -- where metadata->>'seed' = 'true'
 -- order by release_channel, version_name;
 --
 -- select av.version_name, av.release_channel, pb.os, pb.arch, pb.type, pb.package_name
--- from application.builds pb
--- join application.versions av on av.id = pb.version_id
+-- from publisher.builds pb
+-- join publisher.versions av on av.id = pb.version_id
 -- where av.metadata->>'seed' = 'true'
 -- order by av.release_channel, av.version_name, pb.os, pb.arch, pb.type;

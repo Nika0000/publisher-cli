@@ -16,6 +16,25 @@ interface UploadBuildOptions {
   channel?: string;
   distribution?: string;
   variant?: string;
+  meta?: string[];
+}
+
+function parseMetaEntries(entries?: string[] | null): Record<string, string> | null {
+  if (!entries || entries.length === 0) return null;
+  const out: Record<string, string> = {};
+  for (const entry of entries) {
+    const idx = entry.indexOf('=');
+    if (idx <= 0) {
+      throw new Error(`Invalid --meta value: "${entry}". Expected format: key=value`);
+    }
+    const key = entry.slice(0, idx).trim();
+    const value = entry.slice(idx + 1);
+    if (!key) {
+      throw new Error(`Invalid --meta value: "${entry}". Key cannot be empty`);
+    }
+    out[key] = value;
+  }
+  return Object.keys(out).length > 0 ? out : null;
 }
 
 function parseFilename(filename: string): { os: string; arch: string; type: string } | null {
@@ -81,7 +100,7 @@ export async function uploadBuild(version: string, filePath: string, options: Up
 
     // Get version ID
     const { data: versionData, error: versionError } = await supabase
-      .schema('application')
+      .schema('publisher')
       .from('versions')
       .select('id, release_channel, storage_key_prefix')
       .eq('version_name', version)
@@ -117,6 +136,8 @@ export async function uploadBuild(version: string, filePath: string, options: Up
 
     assertValidPlatform(os, arch, type);
 
+    const customMeta = parseMetaEntries(options.meta);
+
     spinner.text = `Uploading ${filename} to storage...`;
 
     // Upload to storage
@@ -136,7 +157,7 @@ export async function uploadBuild(version: string, filePath: string, options: Up
     // Insert/update platform build record
     const buildUrl = buildCdnUrl(cdnUrl, storagePath);
     const { error: dbError } = await supabase
-      .schema('application')
+      .schema('publisher')
       .from('builds')
       .upsert({
         version_id: versionData.id,
@@ -149,7 +170,8 @@ export async function uploadBuild(version: string, filePath: string, options: Up
         url: buildUrl,
         size: fileSize,
         sha256_checksum: sha256,
-        sha512_checksum: sha512
+        sha512_checksum: sha512,
+        ...(customMeta ? { platform_metadata: { custom: customMeta } } : {})
       }, {
         onConflict: 'version_id,os,arch,type,distribution,variant'
       });
@@ -177,7 +199,7 @@ export async function createBuild(
   arch: string,
   type: string,
   url: string,
-  options: { size?: number; sha256?: string; sha512?: string; packageName?: string; channel?: string; distribution?: string; variant?: string }
+  options: { size?: number; sha256?: string; sha512?: string; packageName?: string; channel?: string; distribution?: string; variant?: string; meta?: string[] }
 ) {
   const spinner = ora('Creating build record...').start();
 
@@ -185,6 +207,7 @@ export async function createBuild(
     const channel = options.channel || 'stable';
     const distribution = options.distribution || 'store';
     const variant = options.variant || DEFAULT_VARIANT;
+    const customMeta = parseMetaEntries(options.meta);
 
     if (!isSupportedDistribution(distribution)) {
       throw new Error(`Invalid distribution: ${distribution}. Supported: ${SUPPORTED_DISTRIBUTIONS.join(', ')}`);
@@ -196,7 +219,7 @@ export async function createBuild(
 
     // Get version ID
     const { data: versionData, error: versionError } = await supabase
-      .schema('application')
+      .schema('publisher')
       .from('versions')
       .select('id, release_channel')
       .eq('version_name', version)
@@ -221,7 +244,7 @@ export async function createBuild(
 
     // Insert build record
     const { error: dbError } = await supabase
-      .schema('application')
+      .schema('publisher')
       .from('builds')
       .upsert({
         version_id: versionData.id,
@@ -237,7 +260,8 @@ export async function createBuild(
         sha512_checksum: options.sha512 || '',
         platform_metadata: {
           external: distribution === 'store',
-          source: 'manual'
+          source: 'manual',
+          ...(customMeta ? { custom: customMeta } : {})
         }
       }, {
         onConflict: 'version_id,os,arch,type,distribution,variant'
@@ -271,7 +295,7 @@ export async function listBuilds(version: string, options: { channel?: string })
     const channel = options.channel || 'stable';
 
     const { data: versionData, error: versionError } = await supabase
-      .schema('application')
+      .schema('publisher')
       .from('versions')
       .select('id, release_channel')
       .eq('version_name', version)
@@ -283,7 +307,7 @@ export async function listBuilds(version: string, options: { channel?: string })
     }
 
     const { data, error } = await supabase
-      .schema('application')
+      .schema('publisher')
       .from('builds')
       .select('*')
       .eq('version_id', versionData.id)
@@ -328,7 +352,7 @@ export async function deleteBuild(
   try {
     // Resolve version record
     const { data: versionData, error: versionError } = await supabase
-      .schema('application')
+      .schema('publisher')
       .from('versions')
       .select('id, version_name, release_channel, is_published')
       .eq('version_name', version)
@@ -341,7 +365,7 @@ export async function deleteBuild(
 
     // Find the matching build(s)
     let query = supabase
-      .schema('application')
+      .schema('publisher')
       .from('builds')
       .select('*')
       .eq('version_id', versionData.id)
@@ -369,7 +393,7 @@ export async function deleteBuild(
 
     // Conflict check: are any of these builds referenced as fallbacks by other versions?
     const { data: dependentBuilds, error: depError } = await supabase
-      .schema('application')
+      .schema('publisher')
       .from('builds')
       .select('version_id, os, arch, type, distribution, platform_metadata')
       .filter('platform_metadata->>fallback_from', 'eq', version);
@@ -431,7 +455,7 @@ export async function deleteBuild(
       }
 
       const { error: deleteError } = await supabase
-        .schema('application')
+        .schema('publisher')
         .from('builds')
         .delete()
         .eq('id', build.id);

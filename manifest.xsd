@@ -37,12 +37,27 @@
     <xs:attribute name="external" type="xs:boolean" default="false"/>
   </xs:attributeGroup>
 
+  <xs:complexType name="MetadataEntryType">
+    <xs:attribute name="key" type="xs:string" use="required"/>
+    <xs:attribute name="value" type="xs:string" use="required"/>
+  </xs:complexType>
+
+  <xs:complexType name="MetadataType">
+    <xs:sequence>
+      <xs:element name="entry" type="MetadataEntryType" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
   <xs:complexType name="SourceType">
+    <xs:sequence>
+      <xs:element name="metadata" type="MetadataType" minOccurs="0"/>
+    </xs:sequence>
     <xs:attributeGroup ref="BuildSourceAttrs"/>
   </xs:complexType>
 
   <xs:complexType name="BuildType">
     <xs:sequence>
+      <xs:element name="metadata" type="MetadataType" minOccurs="0"/>
       <xs:element name="source" type="SourceType" minOccurs="0" maxOccurs="unbounded"/>
     </xs:sequence>
     <xs:attributeGroup ref="BuildSourceAttrs"/>

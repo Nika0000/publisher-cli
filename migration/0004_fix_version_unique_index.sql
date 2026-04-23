@@ -10,21 +10,21 @@
 -- This migration makes the DB consistent with the intent of 0002.
 
 -- Drop the single-column unique index if it was recreated
-drop index if exists application.idx_versions_version_name;
+drop index if exists publisher.idx_versions_version_name;
 
 -- Also drop the constraint variant in case it still exists
-alter table application.versions
+alter table publisher.versions
   drop constraint if exists versions_version_name_key;
 
 -- Ensure the channel-scoped compound constraint is in place
-alter table application.versions
+alter table publisher.versions
   drop constraint if exists versions_version_channel_unique;
 
-alter table application.versions
+alter table publisher.versions
   add constraint versions_version_channel_unique
   unique (version_name, release_channel);
 
 -- Re-create the compound unique index (idempotent)
-drop index if exists application.idx_versions_version_channel;
+drop index if exists publisher.idx_versions_version_channel;
 create unique index idx_versions_version_channel
-  on application.versions(version_name, release_channel);
+  on publisher.versions(version_name, release_channel);

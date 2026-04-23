@@ -12,7 +12,7 @@ const prompts_1 = __importDefault(require("prompts"));
 const index_js_1 = require("../index.js");
 const manifest_js_1 = require("../utils/manifest.js");
 const versioning_js_1 = require("../utils/versioning.js");
-const appDb = () => index_js_1.supabase.schema('application');
+const appDb = () => index_js_1.supabase.schema('publisher');
 async function publishVersion(version, options) {
     const channel = options.channel || 'stable';
     const spinner = (0, ora_1.default)(`Checking version ${version}...`).start();

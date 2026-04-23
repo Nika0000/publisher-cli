@@ -19,7 +19,7 @@ npm run build
 
 ## High-level architecture
 
-- `src/index.ts` is the only CLI entrypoint. It loads `.env`, then merges credentials from environment variables with `~/.spacerun-archive/config.json`, and creates a Supabase client pinned to the `application` schema with the `APP_PUBLISHER_KEY` bearer token. Running with no args (TTY) or with `chat`/`interactive` launches the REPL in `src/repl.ts`.
+- `src/index.ts` is the only CLI entrypoint. It loads `.env`, then merges credentials from environment variables with `~/.spacerun-archive/config.json`, and creates a Supabase client pinned to the `publisher` schema with the `APP_PUBLISHER_KEY` bearer token. Running with no args (TTY) or with `chat`/`interactive` launches the REPL in `src/repl.ts`.
 - Command modules are split by responsibility:
   - `src/commands/version.ts` manages version records, publish policy fields, and deletion/regeneration behavior.
   - `src/commands/build.ts` handles upload/create/list/delete for build records plus archive bucket uploads.
@@ -29,8 +29,8 @@ npm run build
 - `src/repl.ts` re-uses the same commander program for execution. It overrides `process.exit` per-command so action handlers calling `process.exit(1)` don't kill the REPL, serializes line handling so concurrent input can't interleave overrides, and auto-injects `--channel` from the active channel context when the user doesn't pass one. The readline `completer` suggests slash commands, publisher commands, `--flags`, and channel values. When credentials are missing, the REPL launches `runSetupWizard()` from `src/setup.ts` (masked secret prompts via a custom muted Writable) and then calls `reinitSupabase()` exported from `src/index.ts` to hot-swap the client without re-exec. UI primitives (banner, panel, themed log helpers) live in `src/ui/`.
 - Shared rules live in `src/utils/versioning.ts`: supported OS/arch/build types/channels/distributions, semver helpers, rollout policy normalization, and the metadata/column reconciliation for update policy.
 - Supabase schema and storage expectations come from `migration/*.sql`:
-  - version data lives in `application.versions`
-  - build data lives in `application.builds`
+  - version data lives in `publisher.versions`
+  - build data lives in `publisher.builds`
   - uploaded artifacts and generated manifests live in the public `archive` storage bucket
 - Manifest generation is a first-class output of the CLI, not just a side effect. Manifests are XML (schema version 2). Version manifests are written to `archive/{storage_key_prefix}/manifest.xml`; channel manifests are written to `archive/channels/{channel}/manifest.xml`. Serialization lives in `src/utils/manifest.ts` (uses `fast-xml-parser`); see `manifest.xsd` and `manifest.example.xml`.
 

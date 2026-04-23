@@ -37,7 +37,7 @@ export function reinitSupabase(): boolean {
   cdnUrl = process.env.CDN_URL || cfg.CDN_URL || defaultCdn;
 
   supabase = createClient(url, anon, {
-    db: { schema: 'application' },
+    db: { schema: 'publisher' },
     global: {
       headers: {
         Authorization: `Bearer ${key}`,
@@ -114,6 +114,10 @@ program
   .description('Clear all configuration')
   .action(resetConfig);
 
+function collectMeta(value: string, previous: string[]): string[] {
+  return [...(previous || []), value];
+}
+
 // Version commands
 program
   .command('version:create <version>')
@@ -165,6 +169,7 @@ program
   .option('-o, --os <os>', 'Operating system (macos, windows, linux, ios, android)')
   .option('-a, --arch <arch>', 'Architecture (arm64, x64, x86)')
   .option('-t, --type <type>', 'Build type (patch, installer)')
+  .option('--meta <keyValue>', 'Custom metadata as key=value (repeatable, e.g. --meta minOsVersion=12.0)', collectMeta, [] as string[])
   .action(uploadBuild);
 
 program
@@ -177,6 +182,7 @@ program
   .option('--sha256 <hash>', 'SHA256 checksum')
   .option('--sha512 <hash>', 'SHA512 checksum')
   .option('-p, --package-name <name>', 'Package name')
+  .option('--meta <keyValue>', 'Custom metadata as key=value (repeatable, e.g. --meta minOsVersion=12.0)', collectMeta, [] as string[])
   .action(createBuild);
 
 program

@@ -5,6 +5,7 @@ interface UploadBuildOptions {
     channel?: string;
     distribution?: string;
     variant?: string;
+    meta?: string[];
 }
 export declare function uploadBuild(version: string, filePath: string, options: UploadBuildOptions): Promise<void>;
 export declare function createBuild(version: string, os: string, arch: string, type: string, url: string, options: {
@@ -15,6 +16,7 @@ export declare function createBuild(version: string, os: string, arch: string, t
     channel?: string;
     distribution?: string;
     variant?: string;
+    meta?: string[];
 }): Promise<void>;
 export declare function listBuilds(version: string, options: {
     channel?: string;

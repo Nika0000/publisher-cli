@@ -63,7 +63,7 @@ export async function createVersion(version: string, options: CreateVersionOptio
     };
 
     const { data, error } = await supabase
-      .schema('application')
+      .schema('publisher')
       .from('versions')
       .insert({
         version_name: version,
@@ -136,7 +136,7 @@ export async function setVersionPolicy(version: string, options: SetVersionPolic
 
   try {
     const { data: existing, error: fetchError } = await supabase
-      .schema('application')
+      .schema('publisher')
       .from('versions')
       .select('metadata, release_channel, min_supported_version, rollout_percentage, rollout_start_at, rollout_end_at')
       .eq('version_name', version)
@@ -159,7 +159,7 @@ export async function setVersionPolicy(version: string, options: SetVersionPolic
     const metadata = buildVersionMetadataWithPolicy(existing.metadata, nextPolicy);
 
     const { error: updateError } = await supabase
-      .schema('application')
+      .schema('publisher')
       .from('versions')
       .update({
         release_channel: nextPolicy.channel,
@@ -206,7 +206,7 @@ export async function listVersions(options: ListVersionsOptions) {
     }
 
     let query = supabase
-      .schema('application')
+      .schema('publisher')
       .from('versions')
       .select('*', { count: 'exact' })
       .order('created_at', { ascending: false })
@@ -283,7 +283,7 @@ export async function deleteVersion(
   try {
     // Resolve version record
     const { data: versionData, error: versionError } = await supabase
-      .schema('application')
+      .schema('publisher')
       .from('versions')
       .select('id, version_name, release_channel, is_published, storage_key_prefix')
       .eq('version_name', version)
@@ -296,7 +296,7 @@ export async function deleteVersion(
 
     // Get all builds for this version
     const { data: builds, error: buildsError } = await supabase
-      .schema('application')
+      .schema('publisher')
       .from('builds')
       .select('*')
       .eq('version_id', versionData.id);
@@ -307,7 +307,7 @@ export async function deleteVersion(
 
     // Conflict check: are any builds in other versions referencing this version as a fallback?
     const { data: dependentBuilds, error: depError } = await supabase
-      .schema('application')
+      .schema('publisher')
       .from('builds')
       .select('version_id, os, arch, type, distribution, platform_metadata')
       .filter('platform_metadata->>fallback_from', 'eq', version);
@@ -362,7 +362,7 @@ export async function deleteVersion(
     // Delete all builds from database first
     if (builds && builds.length > 0) {
       const { error: deleteBuildsError } = await supabase
-        .schema('application')
+        .schema('publisher')
         .from('builds')
         .delete()
         .eq('version_id', versionData.id);
@@ -372,7 +372,7 @@ export async function deleteVersion(
 
     // Delete the version itself
     const { error: deleteVersionError } = await supabase
-      .schema('application')
+      .schema('publisher')
       .from('versions')
       .delete()
       .eq('id', versionData.id);

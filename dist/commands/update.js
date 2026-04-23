@@ -9,7 +9,7 @@ const chalk_1 = __importDefault(require("chalk"));
 const semver_1 = __importDefault(require("semver"));
 const index_js_1 = require("../index.js");
 const versioning_js_1 = require("../utils/versioning.js");
-const appDb = () => index_js_1.supabase.schema('application');
+const appDb = () => index_js_1.supabase.schema('publisher');
 async function checkForUpdate(installedVersion, os, arch, options) {
     if (!semver_1.default.valid(installedVersion)) {
         console.error(chalk_1.default.red(`❌ Invalid installed version: ${installedVersion}`));

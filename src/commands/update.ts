@@ -13,7 +13,7 @@ import {
   SUPPORTED_CHANNELS,
 } from '../utils/versioning.js';
 
-const appDb = () => supabase.schema('application');
+const appDb = () => supabase.schema('publisher');
 
 interface CheckUpdateOptions {
   channel?: string;

@@ -16,7 +16,12 @@
                  packageName="App-1.2.3-win-x64.exe"
                  releaseDate="2025-01-15T10:00:00Z"
                  sha256="a3f1c0..."
-                 sha512="b2e9d4..."/>
+                 sha512="b2e9d4...">
+            <metadata>
+              <entry key="minOsVersion" value="10.0.19041"/>
+              <entry key="requiredRamMb" value="4096"/>
+            </metadata>
+          </build>
           <build type="patch" distribution="direct"
                  url="https://cdn.example.com/archive/releases/stable/1.2.3/App-1.2.3-win-x64.patch"
                  size="2097152"

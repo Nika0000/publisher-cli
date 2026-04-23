@@ -12,7 +12,7 @@ import {
 } from '../utils/manifest.js';
 import { sortVersionsDesc } from '../utils/versioning.js';
 
-const appDb = () => supabase.schema('application');
+const appDb = () => supabase.schema('publisher');
 
 interface ChannelOptions {
   channel?: string;

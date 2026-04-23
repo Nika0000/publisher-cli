@@ -47,7 +47,7 @@ async function createVersion(version, options) {
             rolloutEndAt: options.rolloutEndAt,
         };
         const { data, error } = await index_js_1.supabase
-            .schema('application')
+            .schema('publisher')
             .from('versions')
             .insert({
             version_name: version,
@@ -107,7 +107,7 @@ async function setVersionPolicy(version, options) {
     const spinner = (0, ora_1.default)(`Updating policy for ${version} (${selectedChannel})...`).start();
     try {
         const { data: existing, error: fetchError } = await index_js_1.supabase
-            .schema('application')
+            .schema('publisher')
             .from('versions')
             .select('metadata, release_channel, min_supported_version, rollout_percentage, rollout_start_at, rollout_end_at')
             .eq('version_name', version)
@@ -126,7 +126,7 @@ async function setVersionPolicy(version, options) {
         };
         const metadata = (0, versioning_js_1.buildVersionMetadataWithPolicy)(existing.metadata, nextPolicy);
         const { error: updateError } = await index_js_1.supabase
-            .schema('application')
+            .schema('publisher')
             .from('versions')
             .update({
             release_channel: nextPolicy.channel,
@@ -162,7 +162,7 @@ async function listVersions(options) {
             throw new Error(`Invalid channel: ${options.channel}. Supported: ${versioning_js_1.SUPPORTED_CHANNELS.join(', ')}`);
         }
         let query = index_js_1.supabase
-            .schema('application')
+            .schema('publisher')
             .from('versions')
             .select('*', { count: 'exact' })
             .order('created_at', { ascending: false })
@@ -224,7 +224,7 @@ async function deleteVersion(version, options) {
     try {
         // Resolve version record
         const { data: versionData, error: versionError } = await index_js_1.supabase
-            .schema('application')
+            .schema('publisher')
             .from('versions')
             .select('id, version_name, release_channel, is_published, storage_key_prefix')
             .eq('version_name', version)
@@ -235,7 +235,7 @@ async function deleteVersion(version, options) {
         }
         // Get all builds for this version
         const { data: builds, error: buildsError } = await index_js_1.supabase
-            .schema('application')
+            .schema('publisher')
             .from('builds')
             .select('*')
             .eq('version_id', versionData.id);
@@ -244,7 +244,7 @@ async function deleteVersion(version, options) {
         spinner.stop();
         // Conflict check: are any builds in other versions referencing this version as a fallback?
         const { data: dependentBuilds, error: depError } = await index_js_1.supabase
-            .schema('application')
+            .schema('publisher')
             .from('builds')
             .select('version_id, os, arch, type, distribution, platform_metadata')
             .filter('platform_metadata->>fallback_from', 'eq', version);
@@ -291,7 +291,7 @@ async function deleteVersion(version, options) {
         // Delete all builds from database first
         if (builds && builds.length > 0) {
             const { error: deleteBuildsError } = await index_js_1.supabase
-                .schema('application')
+                .schema('publisher')
                 .from('builds')
                 .delete()
                 .eq('version_id', versionData.id);
@@ -300,7 +300,7 @@ async function deleteVersion(version, options) {
         }
         // Delete the version itself
         const { error: deleteVersionError } = await index_js_1.supabase
-            .schema('application')
+            .schema('publisher')
             .from('versions')
             .delete()
             .eq('id', versionData.id);

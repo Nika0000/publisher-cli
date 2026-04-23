@@ -29,6 +29,7 @@ export interface BuildSource {
   sha512?: string | null;
   fallbackFrom?: string | null;
   external?: boolean;
+  metadata?: Record<string, string | number | boolean> | null;
 }
 
 export interface BuildEntry extends BuildSource {
@@ -72,7 +73,11 @@ interface RawBuild {
   packageName?: string | null;
   url: string;
   size?: number | null;
-  platformMetadata?: { fallback_from?: string; external?: boolean } | null;
+  platformMetadata?: {
+    fallback_from?: string;
+    external?: boolean;
+    custom?: Record<string, string | number | boolean>;
+  } | null;
   createdAt: string;
   sha256Checksum?: string | null;
   sha512Checksum?: string | null;
@@ -108,6 +113,10 @@ function rankDistribution(d: Distribution): number {
 }
 
 function toBuildSource(build: RawBuild): BuildSource {
+  const custom = build.platformMetadata?.custom;
+  const metadata = custom && typeof custom === 'object' && Object.keys(custom).length > 0
+    ? custom
+    : null;
   return {
     url: build.url,
     size: build.size ?? null,
@@ -120,6 +129,7 @@ function toBuildSource(build: RawBuild): BuildSource {
     sha512: build.sha512Checksum ?? null,
     fallbackFrom: build.platformMetadata?.fallback_from ?? null,
     external: build.platformMetadata?.external ?? false,
+    metadata,
   };
 }
 
@@ -247,6 +257,15 @@ function buildSourceAttrs(src: BuildSource): Record<string, any> {
   return obj;
 }
 
+function metadataElement(metadata?: Record<string, string | number | boolean> | null): any | null {
+  if (!metadata) return null;
+  const entries = Object.entries(metadata).filter(([, v]) => v !== null && v !== undefined && v !== '');
+  if (entries.length === 0) return null;
+  return {
+    entry: entries.map(([key, value]) => ({ '@_key': key, '@_value': value })),
+  };
+}
+
 function manifestToBuilderObject(m: Manifest): any {
   const root: any = {
     '@_schemaVersion': m.schemaVersion,
@@ -277,8 +296,15 @@ function manifestToBuilderObject(m: Manifest): any {
           '@_name': v.name,
           build: Object.entries(v.builds).map(([_, entry]) => {
             const obj: any = buildSourceAttrs(entry!);
+            const meta = metadataElement(entry!.metadata);
+            if (meta) obj.metadata = meta;
             if (entry!.sources && entry!.sources.length > 0) {
-              obj.source = entry!.sources.map((s) => buildSourceAttrs(s));
+              obj.source = entry!.sources.map((s) => {
+                const sObj: any = buildSourceAttrs(s);
+                const sMeta = metadataElement(s.metadata);
+                if (sMeta) sObj.metadata = sMeta;
+                return sObj;
+              });
             }
             return obj;
           }),

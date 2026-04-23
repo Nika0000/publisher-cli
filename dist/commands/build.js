@@ -17,6 +17,24 @@ const mime_types_1 = __importDefault(require("mime-types"));
 const index_js_1 = require("../index.js");
 const publish_js_1 = require("./publish.js");
 const versioning_js_1 = require("../utils/versioning.js");
+function parseMetaEntries(entries) {
+    if (!entries || entries.length === 0)
+        return null;
+    const out = {};
+    for (const entry of entries) {
+        const idx = entry.indexOf('=');
+        if (idx <= 0) {
+            throw new Error(`Invalid --meta value: "${entry}". Expected format: key=value`);
+        }
+        const key = entry.slice(0, idx).trim();
+        const value = entry.slice(idx + 1);
+        if (!key) {
+            throw new Error(`Invalid --meta value: "${entry}". Key cannot be empty`);
+        }
+        out[key] = value;
+    }
+    return Object.keys(out).length > 0 ? out : null;
+}
 function parseFilename(filename) {
     const match = filename.match(/^spacerun-[0-9A-Za-z.+-]+-([A-Za-z0-9_]+)-([A-Za-z0-9_]+)\.(tar\.gz|zip|dmg|msi|AppImage|deb|rpm|apk)$/);
     if (!match)
@@ -74,7 +92,7 @@ async function uploadBuild(version, filePath, options) {
         }
         // Get version ID
         const { data: versionData, error: versionError } = await index_js_1.supabase
-            .schema('application')
+            .schema('publisher')
             .from('versions')
             .select('id, release_channel, storage_key_prefix')
             .eq('version_name', version)
@@ -101,6 +119,7 @@ async function uploadBuild(version, filePath, options) {
                 'Expected filename format: spacerun-{version}-{arch}-{os}.{ext}');
         }
         (0, versioning_js_1.assertValidPlatform)(os, arch, type);
+        const customMeta = parseMetaEntries(options.meta);
         spinner.text = `Uploading ${filename} to storage...`;
         // Upload to storage
         const storagePrefix = versionData.storage_key_prefix || `releases/${versionData.release_channel}/${version}`;
@@ -117,7 +136,7 @@ async function uploadBuild(version, filePath, options) {
         // Insert/update platform build record
         const buildUrl = buildCdnUrl(index_js_1.cdnUrl, storagePath);
         const { error: dbError } = await index_js_1.supabase
-            .schema('application')
+            .schema('publisher')
             .from('builds')
             .upsert({
             version_id: versionData.id,
@@ -130,7 +149,8 @@ async function uploadBuild(version, filePath, options) {
             url: buildUrl,
             size: fileSize,
             sha256_checksum: sha256,
-            sha512_checksum: sha512
+            sha512_checksum: sha512,
+            ...(customMeta ? { platform_metadata: { custom: customMeta } } : {})
         }, {
             onConflict: 'version_id,os,arch,type,distribution,variant'
         });
@@ -157,6 +177,7 @@ async function createBuild(version, os, arch, type, url, options) {
         const channel = options.channel || 'stable';
         const distribution = options.distribution || 'store';
         const variant = options.variant || versioning_js_1.DEFAULT_VARIANT;
+        const customMeta = parseMetaEntries(options.meta);
         if (!(0, versioning_js_1.isSupportedDistribution)(distribution)) {
             throw new Error(`Invalid distribution: ${distribution}. Supported: ${versioning_js_1.SUPPORTED_DISTRIBUTIONS.join(', ')}`);
         }
@@ -165,7 +186,7 @@ async function createBuild(version, os, arch, type, url, options) {
         }
         // Get version ID
         const { data: versionData, error: versionError } = await index_js_1.supabase
-            .schema('application')
+            .schema('publisher')
             .from('versions')
             .select('id, release_channel')
             .eq('version_name', version)
@@ -184,7 +205,7 @@ async function createBuild(version, os, arch, type, url, options) {
         spinner.text = 'Inserting build record...';
         // Insert build record
         const { error: dbError } = await index_js_1.supabase
-            .schema('application')
+            .schema('publisher')
             .from('builds')
             .upsert({
             version_id: versionData.id,
@@ -200,7 +221,8 @@ async function createBuild(version, os, arch, type, url, options) {
             sha512_checksum: options.sha512 || '',
             platform_metadata: {
                 external: distribution === 'store',
-                source: 'manual'
+                source: 'manual',
+                ...(customMeta ? { custom: customMeta } : {})
             }
         }, {
             onConflict: 'version_id,os,arch,type,distribution,variant'
@@ -231,7 +253,7 @@ async function listBuilds(version, options) {
     try {
         const channel = options.channel || 'stable';
         const { data: versionData, error: versionError } = await index_js_1.supabase
-            .schema('application')
+            .schema('publisher')
             .from('versions')
             .select('id, release_channel')
             .eq('version_name', version)
@@ -241,7 +263,7 @@ async function listBuilds(version, options) {
             throw new Error(`Version ${version} (${channel}) not found`);
         }
         const { data, error } = await index_js_1.supabase
-            .schema('application')
+            .schema('publisher')
             .from('builds')
             .select('*')
             .eq('version_id', versionData.id)
@@ -276,7 +298,7 @@ async function deleteBuild(version, os, arch, type, options) {
     try {
         // Resolve version record
         const { data: versionData, error: versionError } = await index_js_1.supabase
-            .schema('application')
+            .schema('publisher')
             .from('versions')
             .select('id, version_name, release_channel, is_published')
             .eq('version_name', version)
@@ -287,7 +309,7 @@ async function deleteBuild(version, os, arch, type, options) {
         }
         // Find the matching build(s)
         let query = index_js_1.supabase
-            .schema('application')
+            .schema('publisher')
             .from('builds')
             .select('*')
             .eq('version_id', versionData.id)
@@ -310,7 +332,7 @@ async function deleteBuild(version, os, arch, type, options) {
         spinner.stop();
         // Conflict check: are any of these builds referenced as fallbacks by other versions?
         const { data: dependentBuilds, error: depError } = await index_js_1.supabase
-            .schema('application')
+            .schema('publisher')
             .from('builds')
             .select('version_id, os, arch, type, distribution, platform_metadata')
             .filter('platform_metadata->>fallback_from', 'eq', version);
@@ -362,7 +384,7 @@ async function deleteBuild(version, os, arch, type, options) {
                 }
             }
             const { error: deleteError } = await index_js_1.supabase
-                .schema('application')
+                .schema('publisher')
                 .from('builds')
                 .delete()
                 .eq('id', build.id);

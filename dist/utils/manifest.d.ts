@@ -23,6 +23,7 @@ export interface BuildSource {
     sha512?: string | null;
     fallbackFrom?: string | null;
     external?: boolean;
+    metadata?: Record<string, string | number | boolean> | null;
 }
 export interface BuildEntry extends BuildSource {
     sources?: BuildSource[];
@@ -63,6 +64,7 @@ interface RawBuild {
     platformMetadata?: {
         fallback_from?: string;
         external?: boolean;
+        custom?: Record<string, string | number | boolean>;
     } | null;
     createdAt: string;
     sha256Checksum?: string | null;
