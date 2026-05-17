@@ -253,7 +253,7 @@ function buildSourceAttrs(src: BuildSource): Record<string, any> {
   attrIfPresent(src.sha256, 'sha256', obj);
   attrIfPresent(src.sha512, 'sha512', obj);
   attrIfPresent(src.fallbackFrom, 'fallbackFrom', obj);
-  if (src.external) obj['@_external'] = true;
+  if (src.external) obj['@_external'] = 'true';
   return obj;
 }
 
@@ -273,7 +273,7 @@ function manifestToBuilderObject(m: Manifest): any {
     '@_version': m.version,
     '@_channel': m.channel,
     '@_releaseDate': m.releaseDate,
-    '@_mandatory': m.mandatory,
+    '@_mandatory': String(m.mandatory),
   };
 
   if (m.releaseNotes) root.releaseNotes = { '#text': m.releaseNotes };
@@ -321,6 +321,7 @@ const xmlBuilder = new XMLBuilder({
   indentBy: '  ',
   ignoreAttributes: false,
   attributeNamePrefix: '@_',
+  suppressBooleanAttributes: false,
   suppressEmptyNode: true,
   cdataPropName: '#cdata',
   textNodeName: '#text',
