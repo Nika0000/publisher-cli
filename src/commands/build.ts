@@ -38,8 +38,9 @@ function parseMetaEntries(entries?: string[] | null): Record<string, string> | n
 }
 
 function parseFilename(filename: string): { os: string; arch: string; type: string } | null {
-  const match = filename.match(/^spacerun-[0-9A-Za-z.+-]+-([A-Za-z0-9_]+)-([A-Za-z0-9_]+)\.(tar\.gz|zip|dmg|msi|AppImage|deb|rpm|apk)$/);
-  
+  // {product}-{version}-{arch}-{os}.{ext}
+  const match = filename.match(/^[A-Za-z0-9_-]+-[0-9][0-9A-Za-z.+-]*-([A-Za-z0-9_]+)-([A-Za-z0-9_]+)\.(tar\.gz|zip|dmg|msi|AppImage|deb|rpm|apk)$/);
+
   if (!match) return null;
 
   const arch = match[1];
@@ -79,7 +80,8 @@ function getContentType(filePath: string): string {
 
 function buildCdnUrl(baseUrl: string, storagePath: string): string {
   const normalizedBase = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
-  return `${normalizedBase}archive/${storagePath}`;
+  const t = Date.now();
+  return `${normalizedBase}archive/${storagePath}?t=${t}`;
 }
 
 export async function uploadBuild(version: string, filePath: string, options: UploadBuildOptions) {
@@ -130,7 +132,7 @@ export async function uploadBuild(version: string, filePath: string, options: Up
     if (!os || !arch || !type) {
       throw new Error(
         'Could not determine os/arch/type from filename. Please specify with --os, --arch, --type options.\n' +
-        'Expected filename format: spacerun-{version}-{arch}-{os}.{ext}'
+        'Expected filename format: {product}-{version}-{arch}-{os}.{ext}'
       );
     }
 

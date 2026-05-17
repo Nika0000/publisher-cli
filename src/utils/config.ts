@@ -3,7 +3,7 @@ import { homedir } from 'os';
 import { join } from 'path';
 import chalk from 'chalk';
 
-const CONFIG_DIR = join(homedir(), '.spacerun-archive');
+const CONFIG_DIR = join(homedir(), '.publisher-archive');
 const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
 
 interface Config {
