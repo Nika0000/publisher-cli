@@ -4,15 +4,29 @@ CLI for managing app versions, release channels, builds, and update manifests.
 
 ## Install
 
-```bash
-npm install -g publisher-cli
-```
-
-or from this repo:
+**Linux/macOS:**
 
 ```bash
-npm install -g github:SpacerunApp/publisher-cli
+curl -fsSL https://raw.githubusercontent.com/Nika0000/publisher-cli/main/install.sh | bash
 ```
+
+**Windows (PowerShell):**
+
+```powershell
+irm https://raw.githubusercontent.com/Nika0000/publisher-cli/main/install.ps1 | iex
+```
+
+**Install a specific version:**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Nika0000/publisher-cli/main/install.sh | bash -s 2026.5.17
+```
+
+```powershell
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/Nika0000/publisher-cli/main/install.ps1))) "2026.5.17"
+```
+
+Or download binaries directly from the [latest release](https://github.com/Nika0000/publisher-cli/releases/latest).
 
 Binary: `publisher`
 
