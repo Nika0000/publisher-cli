@@ -2,7 +2,7 @@
 import { Command } from 'commander';
 import { config } from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
-import { createVersion, listVersions, setVersionPolicy, deleteVersion } from './commands/version.js';
+import { createVersion, updateVersion, listVersions, setVersionPolicy, deleteVersion } from './commands/version.js';
 import { uploadBuild, listBuilds, createBuild, deleteBuild } from './commands/build.js';
 import { publishVersion, generateManifest } from './commands/publish.js';
 import { setConfig, getConfig, deleteConfig, resetConfig } from './commands/config.js';
@@ -131,6 +131,16 @@ program
   .option('--rollout-start-at <isoDate>', 'Rollout start date (ISO-8601)')
   .option('--rollout-end-at <isoDate>', 'Rollout end date (ISO-8601)')
   .action(createVersion);
+
+program
+  .command('version:update <version>')
+  .description('Update version metadata (notes, changelog, mandatory flag)')
+  .option('-n, --notes <notes>', 'Release notes')
+  .option('-c, --changelog <changelog>', 'Changelog')
+  .option('-m, --mandatory', 'Mark as mandatory update')
+  .option('--no-mandatory', 'Unmark mandatory update')
+  .option('--channel <channel>', 'Release channel (stable, beta, alpha)', 'stable')
+  .action(updateVersion);
 
 program
   .command('version:policy <version>')

@@ -187,6 +187,75 @@ export async function setVersionPolicy(version: string, options: SetVersionPolic
   }
 }
 
+interface UpdateVersionOptions {
+  notes?: string;
+  changelog?: string;
+  mandatory?: boolean;
+  noMandatory?: boolean;
+  channel?: string;
+}
+
+export async function updateVersion(version: string, options: UpdateVersionOptions) {
+  if (!semver.valid(version)) {
+    console.error(chalk.red(`❌ Invalid semantic version: ${version}`));
+    process.exit(1);
+  }
+
+  if (options.channel && !isSupportedChannel(options.channel)) {
+    console.error(chalk.red(`❌ Invalid channel: ${options.channel}`));
+    console.error(chalk.gray(`   Supported channels: ${SUPPORTED_CHANNELS.join(', ')}`));
+    process.exit(1);
+  }
+
+  const updates: Record<string, any> = {};
+  if (options.notes !== undefined) updates.release_notes = options.notes;
+  if (options.changelog !== undefined) updates.changelog = options.changelog;
+  if (options.mandatory) updates.is_mandatory = true;
+  if (options.noMandatory) updates.is_mandatory = false;
+
+  if (Object.keys(updates).length === 0) {
+    console.error(chalk.red('❌ Nothing to update. Provide at least one of --notes, --changelog, --mandatory, or --no-mandatory.'));
+    process.exit(1);
+  }
+
+  const selectedChannel = options.channel || 'stable';
+  const spinner = ora(`Updating version ${version} (${selectedChannel})...`).start();
+
+  try {
+    const { data: existing, error: fetchError } = await supabase
+      .schema('publisher')
+      .from('versions')
+      .select('id, version_name, release_channel')
+      .eq('version_name', version)
+      .eq('release_channel', selectedChannel)
+      .single();
+
+    if (fetchError || !existing) {
+      throw new Error(`Version ${version} (${selectedChannel}) not found`);
+    }
+
+    const { error: updateError } = await supabase
+      .schema('publisher')
+      .from('versions')
+      .update(updates)
+      .eq('id', existing.id);
+
+    if (updateError) throw updateError;
+
+    spinner.succeed(chalk.green(`✓ Version ${version} (${selectedChannel}) updated`));
+    for (const [key, value] of Object.entries(updates)) {
+      const label = key.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase());
+      const display = typeof value === 'string' && value.length > 80
+        ? value.substring(0, 80) + '...'
+        : String(value);
+      console.log(chalk.gray(`  ${label}: ${display}`));
+    }
+  } catch (error: any) {
+    spinner.fail(chalk.red(`Failed to update version: ${error.message}`));
+    process.exit(1);
+  }
+}
+
 interface ListVersionsOptions {
   published?: boolean;
   limit?: string;

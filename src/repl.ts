@@ -1,5 +1,6 @@
 import readline from 'readline';
 import { Command } from 'commander';
+import semver from 'semver';
 import { theme, icon } from './ui/theme.js';
 import { panel } from './ui/box.js';
 import { renderBanner, renderWelcome } from './ui/banner.js';
@@ -8,11 +9,21 @@ import { runSetupWizard } from './setup.js';
 
 interface ReplState {
   channel: string;
+  version: string | null;
   reinitSupabase?: () => boolean;
 }
 
-const SLASH_COMMANDS = ['/help', '/channel', '/clear', '/setup', '/config', '/exit', '/quit'];
+const SLASH_COMMANDS = ['/help', '/channel', '/version', '/clear', '/setup', '/config', '/exit', '/quit'];
 const CHANNELS = ['stable', 'beta', 'alpha'];
+
+const COMMAND_GROUPS: Record<string, string[]> = {
+  version: ['create', 'list', 'policy', 'delete'],
+  build: ['upload', 'create', 'list', 'delete'],
+  publish: [],
+  manifest: ['generate'],
+  update: ['check'],
+  config: ['set', 'get', 'delete', 'reset'],
+};
 
 // Capture once at module load so close handlers always have the real exit
 // even if a runCommand override is still in flight.
@@ -70,6 +81,38 @@ function injectChannel(args: string[], channel: string): string[] {
   return [...args, '--channel', channel];
 }
 
+function injectVersion(args: string[], command: string, version: string): string[] {
+  const cmdsWithVersionArg = [
+    'version:create', 'version:policy', 'version:delete',
+    'build:upload', 'build:create', 'build:list', 'build:delete',
+    'publish', 'manifest:generate',
+  ];
+  if (!cmdsWithVersionArg.includes(command)) return args;
+  // Skip injection if the user already passed a semver as the first positional
+  const afterCmd = args.slice(1);
+  const firstPositional = afterCmd.find(a => !a.startsWith('-'));
+  if (firstPositional && semver.valid(firstPositional)) return args;
+  // Prepend the version context as the first positional arg
+  return [args[0], version, ...args.slice(1)];
+}
+
+function resolveSlashCommand(tokens: string[]): string[] {
+  // Convert "/build list 1.0.0" → "build:list 1.0.0"
+  // Convert "/publish 1.0.0" → "publish 1.0.0"
+  const group = tokens[0];
+  if (!(group in COMMAND_GROUPS)) return tokens;
+  const subcommands = COMMAND_GROUPS[group];
+  if (subcommands.length === 0) {
+    // Group itself is the command (e.g. "publish")
+    return tokens;
+  }
+  const sub = tokens[1];
+  if (sub && subcommands.includes(sub)) {
+    return [`${group}:${sub}`, ...tokens.slice(2)];
+  }
+  return tokens;
+}
+
 async function runCommand(program: Command, argv: string[]): Promise<void> {
   const originalExit = process.exit;
   (process as any).exit = (code?: number) => {
@@ -95,26 +138,29 @@ async function runCommand(program: Command, argv: string[]): Promise<void> {
 }
 
 function printHelp(state: ReplState) {
+  const versionCtx = state.version ? theme.accent(state.version) : theme.muted('none');
   const slash = [
     [`/help`, 'Show this help'],
     [`/channel <name>`, `Set channel context (currently: ${state.channel})`],
+    [`/version <ver>`, `Set version context (currently: ${versionCtx})`],
+    [`/version clear`, 'Clear version context'],
     [`/setup`, 'Configure Supabase credentials interactively'],
     [`/clear`, 'Clear the screen'],
     [`/exit`, 'Exit interactive mode'],
   ];
   const cmds = [
-    ['version:create <ver>', 'Create a new version'],
-    ['version:list', 'List versions'],
-    ['version:policy <ver>', 'Update release policy'],
-    ['version:delete <ver>', 'Delete a version and its builds'],
-    ['build:upload <ver> <file>', 'Upload a build artifact'],
-    ['build:create <ver> <os> <arch> <type> <url>', 'Register an external build'],
-    ['build:list <ver>', 'List builds for a version'],
-    ['build:delete <ver> <os> <arch> <type>', 'Delete a build'],
-    ['publish <ver>', 'Publish a version and generate manifests'],
-    ['manifest:generate <ver>', 'Regenerate the version manifest'],
-    ['update:check <installed> <os> <arch>', 'Check if an update is available'],
-    ['config:get | config:set | config:delete | config:reset', 'Manage CLI config'],
+    ['/version create <ver>', 'Create a new version'],
+    ['/version list', 'List versions'],
+    ['/version policy <ver>', 'Update release policy'],
+    ['/version delete <ver>', 'Delete a version and its builds'],
+    ['/build upload <ver> <file>', 'Upload a build artifact'],
+    ['/build create <ver> <os> <arch> <type> <url>', 'Register an external build'],
+    ['/build list <ver>', 'List builds for a version'],
+    ['/build delete <ver> <os> <arch> <type>', 'Delete a build'],
+    ['/publish <ver>', 'Publish a version and generate manifests'],
+    ['/manifest generate <ver>', 'Regenerate the version manifest'],
+    ['/update check <installed> <os> <arch>', 'Check if an update is available'],
+    ['/config get | set | delete | reset', 'Manage CLI config'],
   ];
 
   const fmtTable = (rows: string[][]) => {
@@ -132,12 +178,15 @@ function printHelp(state: ReplState) {
   console.log(fmtTable(cmds));
   ui.blank();
   ui.hint('Tip: --channel is auto-applied from your channel context unless you pass it explicitly.');
-  ui.hint('Tip: type any command without the "publisher" prefix.');
+  ui.hint('Tip: version context auto-fills <ver> when set. Use /version <ver> to set it.');
+  ui.hint('Tip: use slash style (/build list) or colon style (build:list) — both work.');
   ui.blank();
 }
 
 function buildPrompt(state: ReplState): string {
-  return `${theme.brand(icon.prompt)} ${theme.dim('[' + state.channel + ']')} `;
+  const parts = [state.channel];
+  if (state.version) parts.push(state.version);
+  return `${theme.brand(icon.prompt)} ${theme.dim('[' + parts.join(':') + ']')} `;
 }
 
 function handleSlash(line: string, state: ReplState): { handled: boolean; exit?: boolean; async?: Promise<void> } {
@@ -155,8 +204,22 @@ function handleSlash(line: string, state: ReplState): { handled: boolean; exit?:
     case 'cls':
       console.clear();
       return { handled: true };
-    case 'setup':
+    case 'setup': {
+      const async = (async () => {
+        const ok = await runSetupWizard({ reason: 'manual' });
+        if (ok && state.reinitSupabase) {
+          const ready = state.reinitSupabase();
+          if (ready) ui.success('Credentials reloaded — you\'re ready to go.');
+        }
+      })();
+      return { handled: true, async };
+    }
     case 'config': {
+      const sub = rest[0];
+      if (sub && COMMAND_GROUPS['config'].includes(sub)) {
+        return { handled: false };
+      }
+      // No subcommand — launch setup wizard
       const async = (async () => {
         const ok = await runSetupWizard({ reason: 'manual' });
         if (ok && state.reinitSupabase) {
@@ -181,7 +244,37 @@ function handleSlash(line: string, state: ReplState): { handled: boolean; exit?:
       ui.success(`Channel context set to ${theme.accent(next)}`);
       return { handled: true };
     }
+    case 'version': {
+      const next = rest[0];
+      if (!next) {
+        if (state.version) {
+          ui.info(`Current version context: ${theme.accent(state.version)}`);
+          ui.hint('Usage: /version <semver> or /version clear');
+        } else {
+          ui.warn('No version context set.');
+          ui.hint('Usage: /version <semver> — sets version context so you don\'t have to pass it every time.');
+        }
+        return { handled: true };
+      }
+      // If next word is a known subcommand, fall through to command routing
+      if (COMMAND_GROUPS['version'].includes(next)) {
+        return { handled: false };
+      }
+      if (next === 'clear' || next === 'none' || next === 'reset') {
+        state.version = null;
+        ui.success('Version context cleared.');
+        return { handled: true };
+      }
+      state.version = next;
+      ui.success(`Version context set to ${theme.accent(next)}`);
+      ui.hint('Commands that need a version will use this automatically. Pass one explicitly to override.');
+      return { handled: true };
+    }
     default:
+      // Check if this is a command-style slash (e.g. /build list, /publish 1.0.0)
+      if (cmd && cmd in COMMAND_GROUPS) {
+        return { handled: false };
+      }
       ui.error(`Unknown slash command: /${cmd}`);
       ui.hint('Type /help for a list.');
       return { handled: true };
@@ -201,7 +294,18 @@ function getSuggestions(line: string, program: Command): string[] {
       const partial = line.slice('/channel '.length);
       return CHANNELS.filter(c => c.startsWith(partial)).map(c => '/channel ' + c);
     }
-    return SLASH_COMMANDS.filter(c => c.startsWith(line));
+    // Suggest subcommands for groups: /build → /build list, /build upload, etc.
+    for (const [group, subs] of Object.entries(COMMAND_GROUPS)) {
+      const prefix = `/${group} `;
+      if (line.startsWith(prefix) && subs.length > 0) {
+        const partial = line.slice(prefix.length);
+        return subs.filter(s => s.startsWith(partial)).map(s => prefix + s);
+      }
+    }
+    // Suggest group names alongside built-in slash commands
+    const slashGroups = Object.keys(COMMAND_GROUPS).map(g => '/' + g);
+    const all = [...SLASH_COMMANDS, ...slashGroups];
+    return [...new Set(all)].filter(c => c.startsWith(line));
   }
 
   const tokens = line.split(/\s+/);
@@ -319,7 +423,7 @@ export async function startRepl(
   version: string,
   opts: { reinitSupabase?: () => boolean; needsSetup?: boolean } = {}
 ): Promise<void> {
-  const state: ReplState = { channel: 'stable', reinitSupabase: opts.reinitSupabase };
+  const state: ReplState = { channel: 'stable', version: null, reinitSupabase: opts.reinitSupabase };
 
   console.log(renderBanner(version));
   console.log('');
@@ -367,17 +471,23 @@ export async function startRepl(
 
     if (line.startsWith('/')) {
       const result = handleSlash(line, state);
-      if (result.async) await result.async;
-      if (result.exit) {
-        rl.close();
+      if (result.handled) {
+        if (result.async) await result.async;
+        if (result.exit) {
+          rl.close();
+          return;
+        }
+        rl.setPrompt(buildPrompt(state));
+        rl.prompt();
         return;
       }
-      rl.setPrompt(buildPrompt(state));
-      rl.prompt();
-      return;
+      // Not a built-in slash command — treat as a command-style slash
+      // Strip the leading "/" and continue processing as a normal command
     }
 
-    const tokens = tokenize(line);
+    // Strip leading "/" for slash-style commands (e.g. /build list → build list)
+    const normalized = line.startsWith('/') ? line.slice(1) : line;
+    const tokens = tokenize(normalized);
     if (tokens.length === 0) {
       rl.prompt();
       return;
@@ -390,10 +500,13 @@ export async function startRepl(
       return;
     }
 
+    // Resolve slash-style subcommands: "build list" → "build:list"
+    const resolved = resolveSlashCommand(tokens);
+
     // "Did you mean" for unknown commands
-    if (!isKnownCommand(program, tokens[0])) {
-      ui.error(`Unknown command: ${theme.accent(tokens[0])}`);
-      const matches = getSuggestions(tokens[0], program);
+    if (!isKnownCommand(program, resolved[0])) {
+      ui.error(`Unknown command: ${theme.accent(resolved[0])}`);
+      const matches = getSuggestions(resolved[0], program);
       if (matches.length) {
         const list = matches.slice(0, 6).map(m => theme.accent(m)).join(theme.muted(', '));
         ui.hint(`Did you mean: ${list}?`);
@@ -406,7 +519,9 @@ export async function startRepl(
       return;
     }
 
-    const argv = injectChannel(tokens, state.channel);
+    // Inject version context if set and command expects a version argument
+    let argv = state.version ? injectVersion(resolved, resolved[0], state.version) : resolved;
+    argv = injectChannel(argv, state.channel);
 
     try {
       await runCommand(program, argv);
